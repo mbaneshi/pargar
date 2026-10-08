@@ -1,0 +1,358 @@
+# AutoCAD RECTANGLE (RECTANG) — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: RECTANG
+category: draw
+aliases: [REC, RECTANGLE]
+shortcut: REC
+
+description: |
+  Creates a rectangular polyline from two diagonal corner points. Options at
+  the first prompt allow setting chamfer, fillet, elevation, thickness, and
+  width before picking corners. The result is a closed lightweight polyline.
+
+prompts:
+  - id: first_corner
+    text: "Specify first corner point or [Chamfer/Elevation/Fillet/Thickness/Width]:"
+    accepts:
+      - kind: pick
+        action: store_first_corner_then_advance(second_corner)
+      - kind: number
+        action: store_first_corner_then_advance(second_corner)
+      - kind: keyword
+        value: C
+        long: Chamfer
+        action: advance(chamfer_dist1)
+      - kind: keyword
+        value: E
+        long: Elevation
+        action: advance(elevation_value)
+      - kind: keyword
+        value: F
+        long: Fillet
+        action: advance(fillet_radius)
+      - kind: keyword
+        value: T
+        long: Thickness
+        action: advance(thickness_value)
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(width_value)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_corner
+    text: "Specify other corner point or [Area/Dimensions/Rotation]:"
+    accepts:
+      - kind: pick
+        action: create_rectangle_then_end
+      - kind: number
+        action: create_rectangle_then_end
+      - kind: keyword
+        value: A
+        long: Area
+        action: advance(area_value)
+      - kind: keyword
+        value: D
+        long: Dimensions
+        action: advance(dimension_length)
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+  # === Chamfer sub-prompts ===
+  - id: chamfer_dist1
+    text: "Specify first chamfer distance for rectangles <{CHAMFERA}>:"
+    accepts:
+      - kind: number
+        action: store_chamfer1_then_advance(chamfer_dist2)
+      - kind: enter
+        action: use_default_then_advance(chamfer_dist2)
+      - kind: escape
+        action: cancel_command
+
+  - id: chamfer_dist2
+    text: "Specify second chamfer distance for rectangles <{CHAMFERB}>:"
+    accepts:
+      - kind: number
+        action: store_chamfer2_then_advance(first_corner)
+      - kind: enter
+        action: use_default_then_advance(first_corner)
+      - kind: escape
+        action: cancel_command
+
+  # === Fillet sub-prompt ===
+  - id: fillet_radius
+    text: "Specify fillet radius for rectangles <{FILLETRAD}>:"
+    accepts:
+      - kind: number
+        action: store_fillet_then_advance(first_corner)
+      - kind: enter
+        action: use_default_then_advance(first_corner)
+      - kind: escape
+        action: cancel_command
+
+  # === Elevation sub-prompt ===
+  - id: elevation_value
+    text: "Specify the elevation for rectangles <{current_elevation}>:"
+    accepts:
+      - kind: number
+        action: store_elevation_then_advance(first_corner)
+      - kind: enter
+        action: use_default_then_advance(first_corner)
+      - kind: escape
+        action: cancel_command
+
+  # === Thickness sub-prompt ===
+  - id: thickness_value
+    text: "Specify the thickness for rectangles <{current_thickness}>:"
+    accepts:
+      - kind: number
+        action: store_thickness_then_advance(first_corner)
+      - kind: enter
+        action: use_default_then_advance(first_corner)
+      - kind: escape
+        action: cancel_command
+
+  # === Width sub-prompt ===
+  - id: width_value
+    text: "Specify line width for rectangles <{PLINEWID}>:"
+    accepts:
+      - kind: number
+        action: store_width_then_advance(first_corner)
+      - kind: enter
+        action: use_default_then_advance(first_corner)
+      - kind: escape
+        action: cancel_command
+
+  # === Area sub-prompts ===
+  - id: area_value
+    text: "Enter area of rectangle in current units <{last_area}>:"
+    accepts:
+      - kind: number
+        action: store_area_then_advance(area_dimension_choice)
+      - kind: escape
+        action: cancel_command
+
+  - id: area_dimension_choice
+    text: "Calculate rectangle dimensions based on [Length/Width]:"
+    accepts:
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(area_length)
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(area_width)
+      - kind: escape
+        action: cancel_command
+
+  - id: area_length
+    text: "Enter rectangle length <{last_length}>:"
+    accepts:
+      - kind: number
+        action: create_rectangle_by_area_length_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: area_width
+    text: "Enter rectangle width <{last_width}>:"
+    accepts:
+      - kind: number
+        action: create_rectangle_by_area_width_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Dimensions sub-prompts ===
+  - id: dimension_length
+    text: "Specify length for rectangles <{last_length}>:"
+    accepts:
+      - kind: number
+        action: store_length_then_advance(dimension_width)
+      - kind: escape
+        action: cancel_command
+
+  - id: dimension_width
+    text: "Specify width for rectangles <{last_width}>:"
+    accepts:
+      - kind: number
+        action: store_width_then_advance(dimension_placement)
+      - kind: escape
+        action: cancel_command
+
+  - id: dimension_placement
+    text: "Specify other corner point or [Area/Dimensions/Rotation]:"
+    note: |
+      After entering length and width, a rectangle ghost is attached to the
+      cursor. The pick determines which quadrant the rectangle is placed in
+      relative to the first corner.
+    accepts:
+      - kind: pick
+        action: create_rectangle_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Rotation sub-prompt ===
+  - id: rotation_angle
+    text: "Specify rotation angle or [Pick points] <{last_rotation}>:"
+    accepts:
+      - kind: number
+        action: store_rotation_then_advance(second_corner_rotated)
+      - kind: keyword
+        value: P
+        long: Pick points
+        action: advance(rotation_pick1)
+      - kind: enter
+        action: use_default_then_advance(second_corner_rotated)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation_pick1
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: store_point_then_advance(rotation_pick2)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation_pick2
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: calculate_rotation_then_advance(second_corner_rotated)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_corner_rotated
+    text: "Specify other corner point or [Area/Dimensions/Rotation]:"
+    accepts:
+      - kind: pick
+        action: create_rotated_rectangle_then_end
+      - kind: number
+        action: create_rotated_rectangle_then_end
+      - kind: keyword
+        value: A
+        long: Area
+        action: advance(area_value)
+      - kind: keyword
+        value: D
+        long: Dimensions
+        action: advance(dimension_length)
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+result_entity:
+  type: lightweight_polyline
+  closed: true
+  note: |
+    RECTANG always creates a closed lightweight polyline with 4 vertices
+    (or more if chamfer/fillet is applied). It is NOT a special rectangle entity.
+
+sysvars_read:
+  - CHAMFERA       # first chamfer distance
+  - CHAMFERB       # second chamfer distance
+  - FILLETRAD      # fillet radius
+  - PLINEWID       # polyline width for rectangle edges
+  - OSMODE
+  - ORTHOMODE
+
+sysvars_written:
+  - CHAMFERA       # updated when Chamfer option used
+  - CHAMFERB       # updated when Chamfer option used
+  - FILLETRAD      # updated when Fillet option used
+  - PLINEWID       # updated when Width option used
+  - LASTPOINT
+
+sysvar_definitions:
+  CHAMFERA:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: First chamfer distance. Shared with the CHAMFER command.
+  CHAMFERB:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: Second chamfer distance. Shared with the CHAMFER command.
+  FILLETRAD:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: Fillet radius. Shared with the FILLET command.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: true
+note_on_repeat: |
+  Chamfer, fillet, width, elevation, and thickness settings persist between
+  RECTANG invocations because they are stored in sysvars.
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command
+  esc_twice: cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: REC = RECTANG"
+    confidence: high
+  prompts.first_corner:
+    sources:
+      - "Autodesk RECTANG Command reference (2016, 2020, 2022)"
+      - "CAD Master Coach RECTANG tutorial"
+      - "WonderCAD RECTANGLE command reference"
+      - "Javatpoint AutoCAD Rectangle Command"
+    confidence: high
+    note: |
+      The exact text "Specify first corner point or [Chamfer/Elevation/Fillet/Thickness/Width]:"
+      is confirmed across multiple official and community sources.
+  prompts.second_corner:
+    sources:
+      - "Autodesk RECTANG Command reference: 'Specify other corner point or [Area/Dimensions/Rotation]:'"
+      - "Autodesk Knowledge Network RECTANG (2020)"
+    confidence: high
+  prompts.chamfer:
+    sources:
+      - "autocad123.blogspot.com Rectangle Command tutorial"
+      - "Autodesk RECTANG reference"
+    confidence: medium
+    note: Exact prompt wording for chamfer distances derived from general docs.
+  prompts.area_dimensions_rotation:
+    sources:
+      - "Autodesk RECTANG Command reference"
+      - "dwgshare.com RECTANG tutorial"
+    confidence: medium
+    note: Area/Dimensions/Rotation sub-prompts synthesized; live verification recommended.
+
+unverified:
+  - exact prompt text for Area sub-mode — "Enter area of rectangle in current units" may differ
+  - exact prompt for Dimensions — "Specify length for rectangles" vs possible alternative wording
+  - exact prompt for Rotation — "Specify rotation angle or [Pick points]" needs verification
+  - whether RECTANG shares PLINEWID or has its own internal width tracking
+  - elevation and thickness behavior in 2D-only context (may be hidden in AutoCAD LT)

@@ -1,0 +1,230 @@
+# AutoCAD CIRCLE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: CIRCLE
+category: draw
+aliases: [C]
+shortcut: C
+
+description: |
+  Creates a circle by specifying a center and radius (default), center and
+  diameter, two diametric points, three circumference points, or tangent-
+  tangent-radius.
+
+prompts:
+  - id: center_or_option
+    text: "Specify center point for circle or [3P/2P/Ttr (tan tan radius)]:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(radius_or_diameter)
+      - kind: number
+        note: coordinate input
+        action: store_center_then_advance(radius_or_diameter)
+      - kind: keyword
+        value: 3P
+        long: 3P
+        action: advance(three_point_1)
+      - kind: keyword
+        value: 2P
+        long: 2P
+        action: advance(two_point_1)
+      - kind: keyword
+        value: T
+        long: Ttr
+        action: advance(ttr_tangent1)
+      - kind: escape
+        action: cancel_command
+
+  - id: radius_or_diameter
+    text: "Specify radius of circle or [Diameter]:"
+    accepts:
+      - kind: number
+        action: create_circle_by_radius_then_end
+      - kind: pick
+        action: create_circle_by_radius_from_distance_then_end
+      - kind: keyword
+        value: D
+        long: Diameter
+        action: advance(diameter_value)
+      - kind: escape
+        action: cancel_command
+
+  - id: diameter_value
+    text: "Specify diameter of circle:"
+    accepts:
+      - kind: number
+        action: create_circle_by_diameter_then_end
+      - kind: pick
+        action: create_circle_by_diameter_from_distance_then_end
+      - kind: escape
+        action: cancel_command
+
+  # --- 3-Point mode ---
+  - id: three_point_1
+    text: "Specify first point on circle:"
+    accepts:
+      - kind: pick
+        action: store_point_then_advance(three_point_2)
+      - kind: number
+        action: store_point_then_advance(three_point_2)
+      - kind: escape
+        action: cancel_command
+
+  - id: three_point_2
+    text: "Specify second point on circle:"
+    accepts:
+      - kind: pick
+        action: store_point_then_advance(three_point_3)
+      - kind: number
+        action: store_point_then_advance(three_point_3)
+      - kind: escape
+        action: cancel_command
+
+  - id: three_point_3
+    text: "Specify third point on circle:"
+    accepts:
+      - kind: pick
+        action: create_circle_through_3points_then_end
+      - kind: number
+        action: create_circle_through_3points_then_end
+      - kind: escape
+        action: cancel_command
+
+  # --- 2-Point mode ---
+  - id: two_point_1
+    text: "Specify first end point of circle's diameter:"
+    accepts:
+      - kind: pick
+        action: store_point_then_advance(two_point_2)
+      - kind: number
+        action: store_point_then_advance(two_point_2)
+      - kind: escape
+        action: cancel_command
+
+  - id: two_point_2
+    text: "Specify second end point of circle's diameter:"
+    accepts:
+      - kind: pick
+        action: create_circle_by_2points_then_end
+      - kind: number
+        action: create_circle_by_2points_then_end
+      - kind: escape
+        action: cancel_command
+
+  # --- Ttr (Tangent, Tangent, Radius) mode ---
+  - id: ttr_tangent1
+    text: "Specify point on object for first tangent of circle:"
+    accepts:
+      - kind: pick
+        action: store_tangent1_then_advance(ttr_tangent2)
+      - kind: escape
+        action: cancel_command
+
+  - id: ttr_tangent2
+    text: "Specify point on object for second tangent of circle:"
+    accepts:
+      - kind: pick
+        action: store_tangent2_then_advance(ttr_radius)
+      - kind: escape
+        action: cancel_command
+
+  - id: ttr_radius
+    text: "Specify radius of circle:"
+    accepts:
+      - kind: number
+        action: create_circle_ttr_then_end
+      - kind: pick
+        action: create_circle_ttr_from_distance_then_end
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - CIRCLERAD      # last circle radius used; default for next circle
+  - OSMODE         # object snap modes
+
+sysvars_written:
+  - CIRCLERAD      # updated when a circle is created
+
+sysvar_definitions:
+  CIRCLERAD:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: |
+      Stores the last circle radius. When non-zero, it appears as the default
+      in angle brackets at the radius prompt: "Specify radius of circle or
+      [Diameter] <{CIRCLERAD}>:". A value of 0.0 means no default is shown.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+note_on_repeat: |
+  Repeating CIRCLE always returns to center_or_option. The last-used method
+  (3P, 2P, Ttr) is NOT preserved; it defaults to center+radius each time.
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command
+  esc_twice: cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: C = CIRCLE"
+    confidence: high
+  prompts.center_or_option:
+    sources:
+      - "Autodesk help CIRCLE (Command) 2016/2024"
+      - "CAD-training-course.com CIRCLE tutorial"
+      - "Noble Desktop CIRCLE command tutorial"
+      - "Peachpit Quick Start Tutorial"
+    confidence: high
+    note: |
+      The exact text "Specify center point for circle or [3P/2P/Ttr (tan tan radius)]:"
+      is confirmed across multiple independent sources.
+  prompts.radius_or_diameter:
+    sources:
+      - "Multiple tutorials: 'Specify radius of circle or [Diameter]:'"
+      - "Autodesk CIRCLE command reference"
+    confidence: high
+  prompts.three_point:
+    sources:
+      - "Autodesk help CIRCLE 3P option"
+      - "Noble Desktop mastering circle command"
+    confidence: high
+  prompts.two_point:
+    sources:
+      - "Autodesk help CIRCLE 2P option"
+    confidence: high
+  prompts.ttr:
+    sources:
+      - "Noble Desktop: 'Specify point on object for first tangent of circle'"
+      - "CAD Master Coach TTR tutorial"
+      - "Autodesk community Tan Tan Tan thread"
+    confidence: high
+  sysvars.CIRCLERAD:
+    sources:
+      - "General AutoCAD sysvar references"
+    confidence: medium
+    note: Exact default display behavior should be verified in live AutoCAD.
+
+unverified:
+  - whether CIRCLERAD default is shown as "<X.XXXX>" in the radius prompt or only when non-zero
+  - exact prompt text for Ttr mode — "Specify point on object for first tangent of circle:" vs possible minor variations
+  - whether Tan Tan Tan (3 tangent points) is available as a sub-option within CIRCLE or only via the ribbon/menu

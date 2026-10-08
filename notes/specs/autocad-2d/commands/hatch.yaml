@@ -1,0 +1,498 @@
+# AutoCAD HATCH — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+# Note: GUI HATCH opens a ribbon contextual tab. -HATCH is the command-line version.
+# This spec documents the -HATCH command-line flow since NEXUS targets command dispatch.
+
+command: HATCH
+category: draw
+aliases: [H, BH, BHATCH]
+shortcut: H
+
+description: |
+  Fills an enclosed area or selected objects with a hatch pattern, solid fill,
+  or gradient fill. The GUI version (HATCH) activates a contextual ribbon tab for
+  interactive boundary picking and property editing. The command-line version
+  (-HATCH) prompts for internal points, object selection, and pattern properties.
+
+prompts:
+  # -HATCH command-line version prompts
+  - id: pick_or_option
+    text: "Specify internal point or [Properties/Select objects/draW boundary/remove Boundaries/Advanced/DRaw order/Origin/ANnotative/hatch COlor/LAyer/Transparency]:"
+    notes: "This is the main prompt; the full option list is shown. Common abbreviated options: P, S, W, B, A, DR, O, AN, CO, LA, T."
+    accepts:
+      - kind: pick
+        action: detect_boundary_then_loop(pick_or_option)
+      - kind: keyword
+        value: P
+        long: Properties
+        action: advance(properties)
+      - kind: keyword
+        value: S
+        long: "Select objects"
+        action: advance(select_objects)
+      - kind: keyword
+        value: W
+        long: "draW boundary"
+        action: advance(draw_boundary)
+      - kind: keyword
+        value: B
+        long: "remove Boundaries"
+        action: advance(remove_boundaries)
+      - kind: keyword
+        value: A
+        long: Advanced
+        action: advance(advanced_options)
+      - kind: keyword
+        value: DR
+        long: "DRaw order"
+        action: advance(draw_order)
+      - kind: keyword
+        value: O
+        long: Origin
+        action: advance(origin_options)
+      - kind: keyword
+        value: AN
+        long: ANnotative
+        action: toggle_annotative
+      - kind: keyword
+        value: CO
+        long: "hatch COlor"
+        action: advance(hatch_color)
+      - kind: keyword
+        value: LA
+        long: LAyer
+        action: advance(hatch_layer)
+      - kind: keyword
+        value: T
+        long: Transparency
+        action: advance(transparency)
+      - kind: enter
+        action: apply_hatch_and_end
+      - kind: escape
+        action: cancel_command
+
+  - id: properties
+    text: "Enter a pattern name or [?/Solid/User defined] <{HPNAME}>:"
+    accepts:
+      - kind: keyword
+        value: "?"
+        action: list_patterns_then_loop(properties)
+      - kind: keyword
+        value: S
+        long: Solid
+        action: set_solid_then_advance(pick_or_option)
+      - kind: keyword
+        value: U
+        long: "User defined"
+        action: advance(user_defined_spacing)
+      - kind: enter
+        action: use_default_then_advance(pattern_scale)
+      - kind: number
+        notes: "pattern name string"
+        action: set_pattern_then_advance(pattern_scale)
+      - kind: escape
+        action: cancel_command
+
+  - id: pattern_scale
+    text: "Specify a scale for the pattern <{HPSCALE}>:"
+    accepts:
+      - kind: number
+        action: set_scale_then_advance(pattern_angle)
+      - kind: enter
+        action: use_default_then_advance(pattern_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: pattern_angle
+    text: "Specify an angle for the pattern <{HPANG}>:"
+    accepts:
+      - kind: number
+        action: set_angle_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: user_defined_spacing
+    text: "Specify spacing for the lines <1.0000>:"
+    accepts:
+      - kind: number
+        action: set_spacing_then_advance(user_defined_double)
+      - kind: enter
+        action: use_default_then_advance(user_defined_double)
+      - kind: escape
+        action: cancel_command
+
+  - id: user_defined_double
+    text: "Double hatch area? [Yes/No] <{HPDOUBLE_Y_OR_N}>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_double_then_advance(pattern_angle)
+      - kind: keyword
+        value: N
+        action: advance(pattern_angle)
+      - kind: enter
+        action: use_default_then_advance(pattern_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_then_loop(select_objects)
+      - kind: enter
+        action: return_to(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: draw_boundary
+    text: "Retain boundary? [Yes/No] <No>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_retain_then_advance(pick_or_option)
+      - kind: keyword
+        value: N
+        action: advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: remove_boundaries
+    text: "Select boundary to remove:"
+    accepts:
+      - kind: pick
+        action: remove_boundary_then_loop(remove_boundaries)
+      - kind: enter
+        action: return_to(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: advanced_options
+    text: "Enter an option [Boundary set/Retain boundary/Island detection/Gap tolerance]:"
+    accepts:
+      - kind: keyword
+        value: B
+        long: "Boundary set"
+        action: advance(boundary_set)
+      - kind: keyword
+        value: R
+        long: "Retain boundary"
+        action: advance(draw_boundary)
+      - kind: keyword
+        value: I
+        long: "Island detection"
+        action: advance(island_detection)
+      - kind: keyword
+        value: G
+        long: "Gap tolerance"
+        action: advance(gap_tolerance)
+      - kind: enter
+        action: return_to(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: island_detection
+    text: "Enter island detection style [Normal/Outer/Ignore] <Normal>:"
+    accepts:
+      - kind: keyword
+        value: N
+        long: Normal
+        action: set_island_then_advance(pick_or_option)
+      - kind: keyword
+        value: O
+        long: Outer
+        action: set_island_then_advance(pick_or_option)
+      - kind: keyword
+        value: I
+        long: Ignore
+        action: set_island_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: gap_tolerance
+    text: "Specify a gap tolerance value <0>:"
+    accepts:
+      - kind: number
+        action: set_gap_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: boundary_set
+    text: "Select boundary set:"
+    notes: "Select objects to define the boundary computation set"
+    accepts:
+      - kind: pick
+        action: add_to_boundary_set_then_loop(boundary_set)
+      - kind: enter
+        action: return_to(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: draw_order
+    text: "Enter draw order [Send to back/Bring to front/Send behind boundary/Bring in front of boundary] <Send behind boundary>:"
+    accepts:
+      - kind: keyword
+        value: SA
+        long: "Send to back"
+        action: set_draw_order_then_advance(pick_or_option)
+      - kind: keyword
+        value: BR
+        long: "Bring to front"
+        action: set_draw_order_then_advance(pick_or_option)
+      - kind: keyword
+        value: SE
+        long: "Send behind boundary"
+        action: set_draw_order_then_advance(pick_or_option)
+      - kind: keyword
+        value: BI
+        long: "Bring in front of boundary"
+        action: set_draw_order_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: origin_options
+    text: "Specify origin or [Set new origin/Default]:"
+    accepts:
+      - kind: pick
+        action: set_origin_then_advance(pick_or_option)
+      - kind: keyword
+        value: S
+        long: "Set new origin"
+        action: advance(set_new_origin)
+      - kind: keyword
+        value: D
+        long: Default
+        action: advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_new_origin
+    text: "Specify new origin:"
+    accepts:
+      - kind: pick
+        action: set_origin_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: hatch_color
+    text: "Enter color name or [Truecolor/COlorbook] <use current>:"
+    accepts:
+      - kind: number
+        notes: "ACI color number or color name"
+        action: set_color_then_advance(pick_or_option)
+      - kind: keyword
+        value: T
+        long: Truecolor
+        action: advance(truecolor_input)
+      - kind: keyword
+        value: CO
+        long: COlorbook
+        action: advance(colorbook_input)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: truecolor_input
+    text: "Enter Red,Green,Blue color value:"
+    accepts:
+      - kind: number
+        notes: "comma-separated RGB values"
+        action: set_truecolor_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: colorbook_input
+    text: "Enter colorbook name:"
+    accepts:
+      - kind: number
+        notes: "colorbook name string"
+        action: advance(colorbook_color)
+      - kind: escape
+        action: cancel_command
+
+  - id: colorbook_color
+    text: "Enter color name:"
+    accepts:
+      - kind: number
+        notes: "color name within colorbook"
+        action: set_colorbook_color_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: hatch_layer
+    text: "Enter layer name <use current>:"
+    accepts:
+      - kind: number
+        notes: "layer name string"
+        action: set_layer_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: transparency
+    text: "Enter transparency value <use current>:"
+    accepts:
+      - kind: number
+        notes: "0-90 transparency percentage"
+        action: set_transparency_then_advance(pick_or_option)
+      - kind: enter
+        action: use_default_then_advance(pick_or_option)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - HPNAME        # default hatch pattern name
+  - HPSCALE       # default hatch pattern scale
+  - HPANG         # default hatch pattern angle (0-359)
+  - HPASSOC       # hatch associativity (0=non-associative, 1=associative)
+  - HPSPACE       # user-defined hatch line spacing
+  - HPDOUBLE      # user-defined double hatching (0=off, 1=on)
+  - HPORIGIN      # hatch pattern origin point
+  - HPOBJWARNING  # max objects before boundary warning
+  - HPGAPTOL      # gap tolerance for boundary detection
+  - HPISLANDDETECTION  # island detection (0=Normal, 1=Outer, 2=Ignore)
+  - HPLAYER       # hatch layer override
+  - HPCOLOR       # hatch color override
+  - HPTRANSPARENCY # hatch transparency override
+  - FILLMODE      # controls display of filled objects (0=off, 1=on)
+
+sysvars_written:
+  - HPNAME        # updated when pattern name entered
+  - HPSCALE       # updated when scale entered
+  - HPANG         # updated when angle entered
+  - HPSPACE       # updated when user-defined spacing entered
+  - HPDOUBLE      # updated when double hatch toggled
+
+sysvar_definitions:
+  HPNAME:
+    type: string
+    default: "ANSI31"
+    persistence: drawing
+    notes: |
+      Stores the default hatch pattern name. Up to 34 characters, no spaces.
+      Set to "." (dot) for no default or "SOLID" for solid fill.
+  HPSCALE:
+    type: real
+    default: 1.0
+    persistence: drawing
+    notes: Hatch pattern scale factor. Must be nonzero.
+  HPANG:
+    type: real
+    default: 0
+    persistence: drawing
+    notes: Hatch pattern angle in degrees (0-359), relative to current UCS X axis.
+  HPASSOC:
+    type: integer
+    default: 1
+    persistence: registry
+    valid_values:
+      0: "Non-associative — hatch is independent of boundary"
+      1: "Associative — hatch updates when boundary changes"
+    notes: Controls whether new hatches are associative with their boundaries.
+  HPSPACE:
+    type: real
+    default: 1.0
+    persistence: registry
+    notes: Line spacing for user-defined hatch patterns.
+  HPDOUBLE:
+    type: integer
+    default: 0
+    persistence: registry
+    valid_values:
+      0: "Single hatching"
+      1: "Double hatching (perpendicular crosshatch)"
+    notes: Applies only to user-defined hatch patterns.
+  FILLMODE:
+    type: integer
+    default: 1
+    persistence: drawing
+    valid_values:
+      0: "Hatches and solid fills not displayed"
+      1: "Hatches and solid fills displayed"
+    notes: Controls visibility of all hatches and fills. Requires REGEN after change.
+  HPGAPTOL:
+    type: real
+    default: 0
+    persistence: drawing
+    notes: Gap tolerance for boundary detection. 0 = no gap tolerance.
+  HPISLANDDETECTION:
+    type: integer
+    default: 1
+    persistence: registry
+    valid_values:
+      0: "Normal — hatches alternate nested boundaries"
+      1: "Outer — hatches only outermost boundary"
+      2: "Ignore — hatches everything within outermost boundary"
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: true   # pattern name/scale/angle persist via sysvars
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_hatch_options
+
+cancel_semantics:
+  esc_once:    cancel_command_discard_hatch
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — H = HATCH, BH = BHATCH"
+      - "Multiple shortcut cheat sheets confirm H and BH"
+    confidence: high
+  prompts.pick_or_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2015/ENU/AutoCAD-LT/files/GUID-410ECEBF-7CC2-4000-A45E-18F1F6BEE423-htm.html"
+      - "https://help.autodesk.com/view/ACD/2024/ENU/?guid=GUID-410ECEBF-7CC2-4000-A45E-18F1F6BEE423"
+      - "CAD Forum: AutoCAD command -HATCH"
+    confidence: high
+  prompts.properties:
+    sources:
+      - "Autodesk Knowledge Network -HATCH 2020"
+      - "BricsCAD Help Center -HATCH command"
+    confidence: medium
+    note: Sub-prompt flow for pattern/scale/angle synthesized from multiple sources.
+  sysvars:
+    sources:
+      - "https://www.cadhatch.com/autocad-hatching-variables"
+      - "Autodesk Knowledge Network H System Variables"
+      - "Hatch Tab documentation (2019–2022)"
+    confidence: high
+  island_detection:
+    sources:
+      - "Autodesk Knowledge Network Hatch Tab dialog documentation"
+    confidence: medium
+
+unverified:
+  - exact prompt wording for the main pick_or_option prompt — full option list may differ across versions
+  - draw order keyword abbreviations (SA/BR/SE/BI) — synthesized, actual abbreviations may differ
+  - whether HPNAME default is "ANSI31" or "." in a fresh drawing
+  - color and layer sub-prompt exact wording
+  - whether the GUI HATCH command (non-hyphen) can be fully driven from command line at all, or requires ribbon interaction
+  - gap tolerance sub-prompt location — may be in Advanced or directly in main prompt in newer versions

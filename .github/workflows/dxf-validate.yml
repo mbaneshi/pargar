@@ -1,0 +1,164 @@
+name: DXF Validate (advisory)
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'packages/file-io/**'
+      - 'scripts/build-test-fixtures.mjs'
+      - 'scripts/validate-dxf.mjs'
+      - '.github/workflows/dxf-validate.yml'
+      # Root install surface — a dep bump or lockfile drift can break the
+      # vitest round-trip step before ezdxf even runs.
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'packages/file-io/**'
+      - 'scripts/build-test-fixtures.mjs'
+      - 'scripts/validate-dxf.mjs'
+      - '.github/workflows/dxf-validate.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: dxf-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: ezdxf audit (advisory)
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # PR #1 lands the gate in advisory mode so legacy + initial-corpus
+    # findings can be inventoried without blocking PRs. Advisory tolerance
+    # is scoped to the audit step alone (see `# PR-2-FLIP:` markers below)
+    # so a vitest or install regression still fails the workflow visibly.
+    # `grep -n PR-2-FLIP .github/workflows/dxf-validate.yml` finds the two
+    # exact lines to remove when PR #2 flips this gate to required.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache uv tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/uv/tools
+          key: ${{ runner.os }}-${{ runner.arch }}-uv-ezdxf-1.4.3
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-uv-ezdxf-
+
+      # Network surface for this step:
+      #   • astral.sh           — uv install script (HTTPS, ~1s reachable from
+      #   • github.com/astral-sh — uv release tarballs (HTTPS, 200 OK)
+      # If the runner's egress is later restricted: pre-install uv on the
+      # runner image (brew install uv) and skip the curl step entirely.
+      - name: Install uv (if missing)
+        run: |
+          if ! command -v uv >/dev/null 2>&1; then
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          uv --version
+
+      # Network surface for this step:
+      #   • pypi.org              — package index (HTTPS, 200 OK)
+      #   • files.pythonhosted.org — wheel CDN (HTTPS, 200 OK)
+      # If pypi is blocked: mirror ezdxf wheels into a runner-local cache
+      # and point uv at it via `uv tool install --index <local-mirror>`.
+      - name: Install ezdxf via uv tool
+        run: |
+          uv tool install --upgrade ezdxf
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          ezdxf --version
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # self-installer default dest (~/setup-pnpm) is a fixed shared path —
+          # concurrent jobs race on it (ENOTEMPTY on rmdir, seen on PR #198).
+          dest: ~/.setup-pnpm-${{ runner.name }}
+      - name: Configure pnpm store (per-runner)
+        # Same shared-$HOME race as above, for the content-addressable
+        # store pnpm install populates (default ~/Library/pnpm/store) —
+        # confirmed on PR #198 (ERR_PNPM_ENOENT mid-install, concurrent
+        # runners copying from/pruning the same store).
+        run: pnpm config set store-dir ~/.pnpm-store-${{ runner.name }} --global
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Generate the round-tripped output the auditor will scan. The vitest
+      # test writes packages/file-io/test-fixtures/.rt-output/<group>/<file>.dxf
+      # from each source fixture. Path is package-relative because
+      # `pnpm --filter` cwd's into the package directory.
+      - name: Round-trip fixtures (vitest)
+        run: pnpm --filter @nexus/file-io exec vitest run src/__tests__/dxf-corpus-validation.test.ts
+        env:
+          CI: 'true'
+
+      - name: Audit fixtures + round-trip outputs
+        id: audit
+        continue-on-error: true # PR-2-FLIP: drop step-level continue-on-error here
+        run: |
+          # PR-2-FLIP: drop continue-on-error and --advisory here
+          node scripts/validate-dxf.mjs --advisory --json dxf-validate-summary.json
+        env:
+          CI: 'true'
+
+      - name: Upload audit summary
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dxf-validate-summary
+          path: |
+            dxf-validate-summary.json
+            packages/file-io/test-fixtures/.rt-output/
+          retention-days: 3
+
+      - name: Comment summary on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('dxf-validate-summary.json')) return;
+            const data = JSON.parse(fs.readFileSync('dxf-validate-summary.json', 'utf8'));
+            const fails = data.results.filter((r) => r.errors > 0);
+            const warns = data.results.filter((r) => r.warnings > 0 && r.errors === 0);
+            const ok = data.results.length - fails.length - warns.length;
+
+            const lines = [
+              '## DXF Audit (ezdxf — advisory)',
+              '',
+              `\`${data.ezdxfVersion}\``,
+              '',
+              `**${ok}** clean · **${warns.length}** with warnings · **${fails.length}** with errors`,
+              `Total: ${data.totalErrors} errors, ${data.totalWarnings} warnings across ${data.results.length} files`,
+              '',
+            ];
+            if (fails.length > 0) {
+              lines.push('### Errors');
+              lines.push('| File | Errors | Crash? |');
+              lines.push('|------|--------|--------|');
+              for (const f of fails) lines.push(`| \`${f.file}\` | ${f.errors} | ${f.crashed ? 'yes' : '' } |`);
+              lines.push('');
+            }
+            lines.push(`> Advisory mode — this job will not block the PR. Flips to required in PR #2 (ODA validator).`);
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: lines.join('\n'),
+            });

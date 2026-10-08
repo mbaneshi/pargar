@@ -1,0 +1,145 @@
+name: Quality Checks
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle-size:
+    name: Bundle Size Check
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        working-directory: packages/kernel
+        run: wasm-pack build --target web --out-dir pkg
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # self-installer default dest (~/setup-pnpm) is a fixed shared path —
+          # concurrent jobs race on it (ENOTEMPTY on rmdir, seen on PR #198).
+          dest: ~/.setup-pnpm-${{ runner.name }}
+      - name: Configure pnpm store (per-runner)
+        # Same shared-$HOME race as above, for the content-addressable
+        # store pnpm install populates (default ~/Library/pnpm/store) —
+        # confirmed on PR #198 (ERR_PNPM_ENOENT mid-install, concurrent
+        # runners copying from/pruning the same store).
+        run: pnpm config set store-dir ~/.pnpm-store-${{ runner.name }} --global
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Report bundle size
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const buildDir = 'packages/app/build';
+
+            function getSize(dir) {
+              let total = 0;
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) total += getSize(full);
+                else total += fs.statSync(full).size;
+              }
+              return total;
+            }
+
+            function findFiles(dir, ext) {
+              let results = [];
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) results.push(...findFiles(full, ext));
+                else if (full.endsWith(ext)) results.push(full);
+              }
+              return results;
+            }
+
+            const wasmFiles = findFiles(buildDir, '.wasm');
+            const wasmSize = wasmFiles.reduce((acc, f) => acc + fs.statSync(f).size, 0);
+            const totalSize = getSize(buildDir);
+            const jsSize = totalSize - wasmSize;
+
+            const fmt = (bytes) => (bytes / 1024).toFixed(1) + ' KB';
+
+            const body = `## Bundle Size Report
+            | Asset | Size |
+            |-------|------|
+            | **Total** | ${fmt(totalSize)} |
+            | JS/CSS/HTML | ${fmt(jsSize)} |
+            | WASM | ${fmt(wasmSize)} |
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  security:
+    name: Dependency Audit
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # self-installer default dest (~/setup-pnpm) is a fixed shared path —
+          # concurrent jobs race on it (ENOTEMPTY on rmdir, seen on PR #198).
+          dest: ~/.setup-pnpm-${{ runner.name }}
+      - name: Configure pnpm store (per-runner)
+        # Same shared-$HOME race as above, for the content-addressable
+        # store pnpm install populates (default ~/Library/pnpm/store) —
+        # confirmed on PR #198 (ERR_PNPM_ENOENT mid-install, concurrent
+        # runners copying from/pruning the same store).
+        run: pnpm config set store-dir ~/.pnpm-store-${{ runner.name }} --global
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Cargo audit
+        run: |
+          cargo install cargo-audit 2>/dev/null || true
+          cd packages/kernel && cargo audit
+        continue-on-error: true

@@ -1,0 +1,164 @@
+# AutoCAD BREAK — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: BREAK
+category: modify
+aliases: [BR]
+shortcut: BR
+
+description: |
+  Breaks the selected object between two points, removing the portion between
+  them. Can also split an object in two at a single point without removing any
+  geometry (by specifying the same point for both break points, using @).
+  Works on lines, arcs, circles, polylines, ellipses, splines, xlines, and rays.
+
+prompts:
+  - id: select_object
+    text: "Select object:"
+    accepts:
+      - kind: pick
+        action: set_object_and_first_point_then_advance(second_break_point)
+        notes: |
+          The pick point is used as BOTH the object selection point AND the
+          first break point by default. This is the standard behavior.
+      - kind: escape
+        action: cancel_command
+
+  - id: second_break_point
+    text: "Specify second break point or [First point]:"
+    accepts:
+      - kind: pick
+        action: emit_break_then_end
+      - kind: keyword
+        value: F
+        long: First point
+        action: advance(first_point_override)
+      - kind: escape
+        action: cancel_command
+
+  - id: first_point_override
+    text: "Specify first break point:"
+    accepts:
+      - kind: pick
+        action: set_first_point_then_advance(second_break_point_after_first)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_break_point_after_first
+    text: "Specify second break point:"
+    accepts:
+      - kind: pick
+        action: emit_break_then_end
+      - kind: escape
+        action: cancel_command
+
+break_at_point:
+  description: |
+    To split an object in two without erasing a portion, enter @ at the
+    second break point prompt. This specifies "same as the first point"
+    (relative coordinates 0,0,0). The object is split at the first break
+    point into two separate objects.
+
+    AutoCAD also provides the BREAK AT POINT toolbar button which
+    automatically invokes BREAK with the F option and then enters @
+    for the second point.
+  macro: "^C^C_break;_f;\\;@"
+
+circle_break_behavior:
+  description: |
+    When breaking a circle, the portion removed is counterclockwise from
+    the first break point to the second break point. The result is an arc.
+    If breaking at a single point (@), the circle becomes an arc spanning
+    nearly 360 degrees (a tiny gap at the break point).
+
+valid_objects:
+  - Line
+  - Arc
+  - Circle
+  - Polyline (2D and 3D)
+  - Ellipse
+  - Spline
+  - Xline (infinite line — becomes a ray)
+  - Ray (semi-infinite line — becomes a line)
+
+break_result_types:
+  line: two_lines
+  arc: two_arcs_or_shorter_arc
+  circle: arc
+  polyline: two_polylines
+  ellipse: elliptical_arc
+  spline: two_splines
+  xline: ray_and_line_or_two_rays
+  ray: line_and_ray
+
+sysvars_read: []
+sysvars_written: []
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "https://www.g-wlearning.com/cad/0633/resources/data/app_d.pdf"
+      - "https://thecadmasters.com/autocad-command-shortcuts/"
+      - "Multiple community alias lists confirm BR as the BREAK alias"
+    confidence: high
+  prompts.select_object:
+    sources:
+      - "AutoCAD 2024 Help BREAK command reference (GUID-36A1CDE0)"
+      - "https://allaboutcad.com/breaking-a-line-into-two/"
+      - "AutoCAD 2023 Mac Help (GUID-7F63FF08)"
+    confidence: high
+  prompts.second_break_point:
+    sources:
+      - "AutoCAD 2024 Help BREAK command reference"
+      - "https://www.cadforum.cz/en/command.asp?cmd=BREAK"
+      - "Autodesk Forum thread on _F option"
+    confidence: high
+  prompts.first_point_override:
+    sources:
+      - "AutoCAD 2024 Help BREAK command reference"
+      - "https://forums.autodesk.com/t5/visual-lisp-autolisp-and-general/quot-f-quot-option-calling-break-command/td-p/9107812"
+    confidence: high
+  break_at_point:
+    sources:
+      - "https://forums.autodesk.com/t5/autocad-forum/quot-break-at-point-quot-command-shortcut/td-p/8085842"
+      - "https://www.cadtutor.net/forum/topic/945-break-a-line-at-a-single-point/"
+    confidence: high
+  circle_break_behavior:
+    sources:
+      - "General AutoCAD knowledge — circles break CCW from first to second point"
+    confidence: medium
+    note: Direction of break on circles is well-established but not directly sourced from official 2024 docs.
+
+unverified:
+  - exact wording of "Specify second break point or [First point]:" — may be "[First point]" or "[First]" depending on version
+  - whether the F option prompt says "Specify first break point:" or "Specify first point:" (with/without "break")
+  - exact behavior when breaking a closed polyline (may become open polyline rather than two polylines)
+  - whether BREAK works on 3D polylines in all cases
+  - exact macro string for BREAK AT POINT toolbar button — ^C^C_break;_f;\\;@ is commonly cited but version-specific
+  - whether xline break produces a ray or a line depending on which side of the break point

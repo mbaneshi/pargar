@@ -1,0 +1,309 @@
+# AutoCAD TEXT — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: TEXT
+category: annotate
+aliases: [DT]
+shortcut: DT
+
+description: |
+  Creates a single-line text object. Prompts for start point, height (if not
+  fixed by the current text style), and rotation angle, then enters an in-place
+  text editor for typing. Each Enter creates a new line of independent single-line
+  text below the previous one. A blank Enter or Escape ends the command.
+
+prompts:
+  - id: start_point_or_option
+    text: "Specify start point of text or [Justify/Style]:"
+    accepts:
+      - kind: pick
+        action: set_start_point_then_advance(height_or_rotation)
+      - kind: number
+        notes: "coordinate input"
+        action: set_start_point_then_advance(height_or_rotation)
+      - kind: keyword
+        value: J
+        long: Justify
+        action: advance(justify_option)
+      - kind: keyword
+        value: S
+        long: Style
+        action: advance(style_option)
+      - kind: enter
+        condition: "TEXT was last command"
+        action: place_below_last_text_skip_height_rotation
+      - kind: escape
+        action: cancel_command
+
+  - id: justify_option
+    text: "Enter an option [Align/Fit/Center/Middle/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR]:"
+    accepts:
+      - kind: keyword
+        value: A
+        long: Align
+        action: advance(align_first_point)
+      - kind: keyword
+        value: F
+        long: Fit
+        action: advance(fit_first_point)
+      - kind: keyword
+        value: C
+        long: Center
+        action: advance(center_point)
+      - kind: keyword
+        value: M
+        long: Middle
+        action: advance(middle_point)
+      - kind: keyword
+        value: R
+        long: Right
+        action: advance(right_point)
+      - kind: keyword
+        value: TL
+        action: advance(justified_point)
+      - kind: keyword
+        value: TC
+        action: advance(justified_point)
+      - kind: keyword
+        value: TR
+        action: advance(justified_point)
+      - kind: keyword
+        value: ML
+        action: advance(justified_point)
+      - kind: keyword
+        value: MC
+        action: advance(justified_point)
+      - kind: keyword
+        value: MR
+        action: advance(justified_point)
+      - kind: keyword
+        value: BL
+        action: advance(justified_point)
+      - kind: keyword
+        value: BC
+        action: advance(justified_point)
+      - kind: keyword
+        value: BR
+        action: advance(justified_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: style_option
+    text: "Enter style name or [?] <{TEXTSTYLE}>:"
+    accepts:
+      - kind: keyword
+        value: "?"
+        action: list_styles_then_loop(style_option)
+      - kind: enter
+        action: use_default_then_advance(start_point_or_option)
+      - kind: number
+        notes: "style name string"
+        action: set_TEXTSTYLE_then_advance(start_point_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: height_or_rotation
+    text: "Specify height <{TEXTSIZE}>:"
+    condition: "current text style has no fixed height"
+    accepts:
+      - kind: number
+        action: set_height_then_advance(rotation)
+      - kind: pick
+        notes: "pick two points to define height"
+        action: set_height_from_pick_then_advance(rotation)
+      - kind: enter
+        action: use_default_height_then_advance(rotation)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation
+    text: "Specify rotation angle of text <0>:"
+    accepts:
+      - kind: number
+        action: set_rotation_then_advance(enter_text)
+      - kind: pick
+        notes: "pick to define angle by direction"
+        action: set_rotation_from_pick_then_advance(enter_text)
+      - kind: enter
+        action: use_default_rotation_then_advance(enter_text)
+      - kind: escape
+        action: cancel_command
+
+  - id: enter_text
+    text: ""
+    notes: |
+      In-place text editor activates. User types text. Each Enter starts a new
+      single-line text object directly below. A blank Enter (empty line) or
+      Escape ends the command. Clicking elsewhere starts a new text at that
+      location (same height/rotation).
+    accepts:
+      - kind: enter
+        condition: "text field is empty"
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: align_first_point
+    text: "Specify first endpoint of text baseline:"
+    accepts:
+      - kind: pick
+        action: advance(align_second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: align_second_point
+    text: "Specify second endpoint of text baseline:"
+    accepts:
+      - kind: pick
+        action: set_align_then_advance(enter_text)
+      - kind: escape
+        action: cancel_command
+
+  - id: fit_first_point
+    text: "Specify first endpoint of text baseline:"
+    accepts:
+      - kind: pick
+        action: advance(fit_second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: fit_second_point
+    text: "Specify second endpoint of text baseline:"
+    accepts:
+      - kind: pick
+        action: advance(fit_height)
+      - kind: escape
+        action: cancel_command
+
+  - id: fit_height
+    text: "Specify height <{TEXTSIZE}>:"
+    accepts:
+      - kind: number
+        action: set_height_then_advance(enter_text)
+      - kind: enter
+        action: use_default_then_advance(enter_text)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_point
+    text: "Specify center point of text:"
+    accepts:
+      - kind: pick
+        action: set_center_then_advance(height_or_rotation)
+      - kind: escape
+        action: cancel_command
+
+  - id: middle_point
+    text: "Specify middle point of text:"
+    accepts:
+      - kind: pick
+        action: set_middle_then_advance(height_or_rotation)
+      - kind: escape
+        action: cancel_command
+
+  - id: right_point
+    text: "Specify right endpoint of text baseline:"
+    accepts:
+      - kind: pick
+        action: set_right_then_advance(height_or_rotation)
+      - kind: escape
+        action: cancel_command
+
+  - id: justified_point
+    text: "Specify {JUSTIFICATION} point of text:"
+    notes: "prompt text varies by selected justification: TL, TC, TR, ML, MC, MR, BL, BC, BR"
+    accepts:
+      - kind: pick
+        action: set_justified_then_advance(height_or_rotation)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - TEXTSIZE      # default text height
+  - TEXTSTYLE     # current text style name
+  - CLAYER        # current layer
+  - CECOLOR       # current entity color
+
+sysvars_written:
+  - TEXTSIZE      # updated when a numeric height is entered
+
+sysvar_definitions:
+  TEXTSIZE:
+    type: real
+    default: 0.2000
+    persistence: drawing
+    notes: |
+      Stores the default text height. Updated each time a text height is entered.
+      Ignored if the current text style has a fixed (non-zero) height.
+  TEXTSTYLE:
+    type: string
+    default: "Standard"
+    persistence: drawing
+    notes: |
+      Name of the current text style. Changed via STYLE command or Style option
+      within TEXT. Determines font, oblique angle, width factor, etc.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: true   # height/rotation defaults persist via TEXTSIZE
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu
+
+cancel_semantics:
+  esc_once:    end_text_editing_and_cancel
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — DT = TEXT (DTEXT)"
+      - "https://www.g-wlearning.com/cad/0633/resources/data/app_d.pdf"
+    confidence: high
+  prompts.start_point_or_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2020/ENU/AutoCAD-Core/files/GUID-D1C664DD-63D9-467E-8EC1-2F5A1777A924-htm.html"
+      - "Carnegie Mellon AutoCAD 2D Tutorial Chapter 11"
+    confidence: high
+  prompts.justify_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2021/ENU/AutoCAD-Core/files/GUID-72F7D0C0-20B3-4F70-998A-794ABEAE431C-htm.html"
+      - "progeSOFT manual: setting line text alignment"
+    confidence: high
+  prompts.height_or_rotation:
+    sources:
+      - "Autodesk Knowledge Network TEXT command 2020"
+      - "Multiple community tutorials confirm height prompt skipped when style has fixed height"
+    confidence: high
+  enter_behavior:
+    sources:
+      - "Autodesk Knowledge Network TEXT command — 'If TEXT was the last command entered, pressing Enter at the Specify Start Point prompt skips height and rotation'"
+    confidence: medium
+    note: Exact behavior of the in-place editor entering new lines needs live verification.
+  sysvars.TEXTSIZE:
+    sources:
+      - "Autodesk Help TEXTSIZE system variable"
+    confidence: high
+  sysvars.TEXTSTYLE:
+    sources:
+      - "https://help.autodesk.com/view/ACD/2025/ENU/?guid=GUID-4F5D952E-63B6-4965-A050-84AEF2273B25"
+    confidence: high
+
+unverified:
+  - exact wording of "Enter an option [Align/Fit/Center/Middle/Right/TL/TC/TR/ML/MC/MR/BL/BC/BR]:" — synthesized from multiple sources
+  - whether clicking elsewhere during in-place text editing starts a new text at that location with the same height/rotation
+  - exact behavior of Enter at start point prompt when TEXT was last command (some sources say it places text below last text, skipping height/rotation)
+  - default rotation angle persistence — unclear if stored in a sysvar or only session-local

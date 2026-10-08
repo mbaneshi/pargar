@@ -1,0 +1,46 @@
+---
+title: Pargar
+description: An open-source, browser-native 2D CAD with a Rust/WASM kernel and AI agents as first-class users.
+template: splash
+hero:
+  tagline: AutoCAD-style 2D drafting in one browser tab. A Rust/WASM kernel, a real command line, DXF in and out, and AI agents that drive it through the same commands you do.
+  actions:
+    - text: Open the app
+      link: https://cad.houshkar.ir
+      icon: external
+    - text: Get started
+      link: /pargar/getting-started/
+      icon: right-arrow
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/mbaneshi/pargar
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+> **Pargar** (پرگار) is Persian for *drawing compass*. No install, your drawings stay in your browser (OPFS) unless you choose cloud save, and every operation is a command that a human, a script or an AI agent can call the same way.
+
+<CardGrid>
+  <Card title="Draft like AutoCAD" icon="pencil">
+    Lines, arcs, polylines, text, dimensions, hatches. Move, trim, extend, offset, fillet, array. Type `L`, `TR`, `O` on the command line; F3 snaps, F8 ortho.
+  </Card>
+  <Card title="Rust/WASM kernel" icon="rocket">
+    Geometry, constraints and an ECS world compiled to WebAssembly: 100+ kernel commands, ~440 KB gzipped, hundreds of Rust tests.
+  </Card>
+  <Card title="Undo that remembers why" icon="random">
+    State is event-sourced. Undo and redo replay a hash-chained event log, so every change is attributable to the human or agent that made it.
+  </Card>
+  <Card title="DXF round-trip" icon="document">
+    Import and export DXF with round-trip tests for entities, dimensions, hatches and style tables. Your files keep working in the tools you already use.
+  </Card>
+  <Card title="Agents are first-class" icon="puzzle">
+    An MCP server exposes 90+ typed tools that map one-to-one onto kernel commands. Nothing an agent does goes through the mouse.
+  </Card>
+  <Card title="Open source" icon="open-book">
+    Apache-2.0 code, CC BY 4.0 docs. Built in the open on GitHub, with the roadmap, the backlog and the decisions in the repo.
+  </Card>
+</CardGrid>
+
+**Status: v0.5, the 2D vertical slice.** The focus until launch is AutoCAD 2D parity for real users. See the [roadmap](/pargar/roadmap/).

@@ -1,0 +1,2 @@
+# Standalone workspace: keeps the site out of the repo-root pnpm workspace (packages/*).
+packages: []

@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+# Fast gate. The heavy chain (cargo test, WASM build, type-check, unit tests,
+# app build) runs on push — see scripts/git-hooks/pre-push and
+# scripts/local-ci.sh. Here: auto-format + clippy, so a commit stays cheap but
+# a lint regression cannot slip through unnoticed (one did, for two months).
+
+# Capture exactly which files are staged for THIS commit. We re-stage only
+# these after auto-formatting — anything else in the working tree must stay
+# unstaged; it belongs to a different commit.
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+
+echo "=== Pre-commit: Auto-formatting Rust ==="
+(cd packages/kernel && cargo fmt)
+
+echo "=== Pre-commit: Auto-formatting TypeScript ==="
+pnpm format
+
+if [ -n "$STAGED_FILES" ]; then
+  echo "$STAGED_FILES" | xargs -r git add --
+fi
+
+echo "=== Pre-commit: Clippy ==="
+(cd packages/kernel && cargo clippy -- -D warnings)
+
+echo "=== Pre-commit OK — heavy checks run on push ==="

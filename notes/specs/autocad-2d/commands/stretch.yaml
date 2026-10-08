@@ -1,0 +1,151 @@
+# AutoCAD STRETCH — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: STRETCH
+category: modify
+aliases: [S]
+shortcut: S
+
+description: |
+  Moves or stretches objects. Objects that are partially enclosed by a crossing
+  selection window are stretched — vertices/endpoints inside the window move while
+  those outside stay fixed. Objects completely enclosed are moved (not stretched).
+  Must use crossing selection (CPolygon or crossing window); regular pick or
+  window selection moves instead of stretching.
+
+prompts:
+  - id: select_objects
+    text: "Select objects to stretch by crossing-window or crossing-polygon..."
+    note: |
+      AutoCAD automatically forces crossing selection mode. The command line
+      shows the standard "Select objects:" prompt, but only crossing window
+      (C) or crossing polygon (CP) selections produce stretch behavior.
+      Regular pick or window selections move the object instead.
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+        note: individual pick selects the whole object for MOVE, not stretch
+      - kind: enter
+        condition: selection_set_not_empty
+        action: advance(base_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: base_point
+    text: "Specify base point or [Displacement] <Displacement>:"
+    accepts:
+      - kind: pick
+        action: set_base_point_then_advance(second_point)
+      - kind: number
+        format: "x,y"
+        action: set_base_point_then_advance(second_point)
+      - kind: keyword
+        value: D
+        long: Displacement
+        action: advance(displacement)
+      - kind: enter
+        action: advance(displacement)
+        note: pressing Enter with no input enters Displacement mode
+      - kind: escape
+        action: cancel_command
+
+  - id: second_point
+    text: "Specify second point or <use first point as displacement>:"
+    accepts:
+      - kind: pick
+        action: emit_stretch_then_end
+      - kind: number
+        format: "x,y"
+        action: emit_stretch_then_end
+      - kind: enter
+        action: use_base_as_displacement_then_end
+        note: treats the base point coordinates as a displacement vector from 0,0
+      - kind: escape
+        action: cancel_command
+
+  - id: displacement
+    text: "Specify displacement <{LAST_DISPLACEMENT}>:"
+    accepts:
+      - kind: pick
+        action: emit_stretch_by_displacement_then_end
+      - kind: number
+        format: "x,y"
+        action: emit_stretch_by_displacement_then_end
+      - kind: enter
+        condition: LAST_DISPLACEMENT exists
+        action: use_default_displacement_then_end
+      - kind: escape
+        action: cancel_command
+
+sysvars_read: []
+sysvars_written: []
+
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+crossing_selection_behavior:
+  description: |
+    STRETCH requires crossing selection. Vertices/endpoints INSIDE the crossing
+    window are moved by the displacement. Vertices/endpoints OUTSIDE remain fixed.
+    Objects completely inside are moved entirely. Objects completely outside are
+    unaffected. Circles, ellipses, block references, text, and mtext that are
+    partially inside a crossing selection are moved (not stretched).
+  objects_that_cannot_stretch:
+    - circles
+    - ellipses
+    - block references (moved instead)
+    - text / mtext (moved instead)
+    - hatch patterns (re-evaluate boundary after stretch)
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix"
+      - "CAD Forum command page — STRETCH"
+    confidence: high
+  prompts.select_objects:
+    sources:
+      - "Autodesk Help GUID-F000A502 (AutoCAD 2020-2023)"
+      - "CAD Forum: 'Select objects: Specify base point or [Displacement] <Displacement>:'"
+    confidence: high
+  prompts.base_point:
+    sources:
+      - "Autodesk Help GUID-F000A502"
+      - "Multiple community references confirm Displacement option"
+    confidence: high
+  crossing_selection_behavior:
+    sources:
+      - "Autodesk Help GUID-F000A502"
+      - "educba.com AutoCAD STRETCH tutorial"
+      - "coohom.com Stretch command article"
+    confidence: high
+
+unverified:
+  - exact wording of "Select objects to stretch by crossing-window..." — AutoCAD shows standard "Select objects:" but behavior requires crossing; exact instructional text may vary
+  - whether Displacement sub-option stores last value in a sysvar or only session memory
+  - behavior when mixing crossing and non-crossing selections in one STRETCH invocation
+  - whether STRETCH supports Undo sub-option within the command (likely not — single operation)

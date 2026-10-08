@@ -1,0 +1,327 @@
+# AutoCAD AREA — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: AREA
+category: inquiry
+aliases: [AA]
+shortcut: AA
+
+description: |
+  Calculates the area and perimeter of a defined region. Supports three modes:
+  picking points to define a polygon boundary, selecting an existing object, or
+  using Add/Subtract to accumulate compound area calculations. Reports area and
+  perimeter values in the command line. Does not create geometry.
+
+prompts:
+  - id: first_corner_or_option
+    text: "Specify first corner point or [Object/Add area/Subtract area] <Object>:"
+    accepts:
+      - kind: pick
+        action: set_first_point_then_advance(next_point)
+      - kind: keyword
+        value: O
+        long: Object
+        action: advance(select_object)
+      - kind: keyword
+        value: A
+        long: Add area
+        action: enter_add_mode_then_advance(add_first_corner)
+      - kind: keyword
+        value: S
+        long: Subtract area
+        action: enter_subtract_mode_then_advance(subtract_first_corner)
+      - kind: enter
+        action: advance(select_object)
+        note: default is Object when Enter is pressed
+      - kind: escape
+        action: cancel_command
+
+  - id: next_point
+    text: "Specify next point or [Arc/Length/Undo]:"
+    accepts:
+      - kind: pick
+        action: add_point_then_loop(next_point)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(arc_endpoint)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(line_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_point_then_loop(next_point)
+      - kind: enter
+        action: close_polygon_and_report_then_end
+        note: |
+          Closes the polygon with a line from the last point to the first.
+          Reports: Area = <value>, Perimeter = <value>.
+          If polygon is not closed, the closing segment length is added
+          to the perimeter.
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_endpoint
+    text: "Specify endpoint of arc (hold Ctrl to switch direction) or [Angle/CEnter/CLose/Direction/Line/Radius/Second pt/Undo]:"
+    accepts:
+      - kind: pick
+        action: add_arc_segment_then_loop(next_point_after_arc)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(arc_angle)
+      - kind: keyword
+        value: CE
+        long: CEnter
+        action: advance(arc_center)
+      - kind: keyword
+        value: CL
+        long: CLose
+        action: close_with_arc_and_report_then_end
+      - kind: keyword
+        value: D
+        long: Direction
+        action: advance(arc_direction)
+      - kind: keyword
+        value: L
+        long: Line
+        action: return_to(next_point)
+      - kind: keyword
+        value: R
+        long: Radius
+        action: advance(arc_radius)
+      - kind: keyword
+        value: S
+        long: Second pt
+        action: advance(arc_second_point)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+      - kind: enter
+        action: close_polygon_and_report_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: line_length
+    text: "Enter length of line segment:"
+    accepts:
+      - kind: number
+        action: add_line_by_length_then_loop(next_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: select_object
+    text: "Select object:"
+    accepts:
+      - kind: pick
+        action: compute_object_area_and_report_then_end
+        note: |
+          For closed objects (circles, closed polylines, regions, ellipses):
+          computes and reports area and perimeter.
+          For open polylines: treats as if a closing segment connects endpoints.
+      - kind: escape
+        action: cancel_command
+
+  - id: add_first_corner
+    text: "Specify first corner point or [Object] <Object>:"
+    note: In Add mode, each area is accumulated into a running total.
+    accepts:
+      - kind: pick
+        action: set_first_point_then_advance(add_next_point)
+      - kind: keyword
+        value: O
+        long: Object
+        action: advance(add_select_object)
+      - kind: enter
+        action: advance(add_select_object)
+      - kind: escape
+        action: report_total_then_end
+
+  - id: add_next_point
+    text: "Specify next point or [Arc/Length/Undo]:"
+    accepts:
+      - kind: pick
+        action: add_point_then_loop(add_next_point)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(add_arc_endpoint)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(add_line_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_point
+      - kind: enter
+        action: close_polygon_add_to_total_then_loop(add_first_corner)
+        note: |
+          Closes the polygon, adds its area to running total, reports:
+            Area = <polygon area>, Perimeter = <polygon perimeter>
+            Total area = <running total>
+          Then loops back to add more areas.
+      - kind: escape
+        action: report_total_then_end
+
+  - id: add_select_object
+    text: "(ADD mode) Select object:"
+    accepts:
+      - kind: pick
+        action: add_object_area_to_total_then_loop(add_first_corner)
+        note: |
+          Adds selected object's area to running total. Reports individual
+          area and running total. Loops back to add more.
+      - kind: escape
+        action: report_total_then_end
+
+  - id: subtract_first_corner
+    text: "Specify first corner point or [Object] <Object>:"
+    note: In Subtract mode, each area is subtracted from the running total.
+    accepts:
+      - kind: pick
+        action: set_first_point_then_advance(subtract_next_point)
+      - kind: keyword
+        value: O
+        long: Object
+        action: advance(subtract_select_object)
+      - kind: enter
+        action: advance(subtract_select_object)
+      - kind: escape
+        action: report_total_then_end
+
+  - id: subtract_next_point
+    text: "Specify next point or [Arc/Length/Undo]:"
+    accepts:
+      - kind: pick
+        action: add_point_then_loop(subtract_next_point)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(subtract_arc_endpoint)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(subtract_line_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_point
+      - kind: enter
+        action: close_polygon_subtract_from_total_then_loop(subtract_first_corner)
+        note: |
+          Closes the polygon, subtracts its area from running total, reports:
+            Area = <polygon area>, Perimeter = <polygon perimeter>
+            Total area = <running total>
+          Then loops back to subtract more areas.
+      - kind: escape
+        action: report_total_then_end
+
+  - id: subtract_select_object
+    text: "(SUBTRACT mode) Select object:"
+    accepts:
+      - kind: pick
+        action: subtract_object_area_from_total_then_loop(subtract_first_corner)
+      - kind: escape
+        action: report_total_then_end
+
+visual_feedback:
+  add_mode_color: green
+  subtract_mode_color: pink
+  note: |
+    In Add mode, the defined area boundary is highlighted in green.
+    In Subtract mode, the defined area boundary is highlighted in pink/magenta.
+
+sysvars_read:
+  - LUNITS         # linear unit format
+  - LUPREC         # linear unit precision
+
+sysvars_written:
+  - AREA           # last computed area (or total in Add/Subtract mode)
+  - PERIMETER      # last computed perimeter
+
+sysvar_definitions:
+  AREA:
+    type: real
+    default: 0.0
+    persistence: not_saved
+    notes: |
+      Stores the last area computed by the AREA, LIST, or DBLIST commands.
+      Read-only from the command line. Accessible via AutoLISP (getvar "AREA").
+      In Add/Subtract mode, stores the running total.
+  PERIMETER:
+    type: real
+    default: 0.0
+    persistence: not_saved
+    notes: |
+      Stores the last perimeter computed by the AREA, LIST, or DBLIST commands.
+      Read-only from the command line. Accessible via AutoLISP (getvar "PERIMETER").
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command
+  esc_twice:   cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — AA"
+    confidence: high
+  prompts.first_corner_or_option:
+    sources:
+      - "CAD Forum AREA page — 'Specify first corner point or [Object/Add area/Subtract area] <Object>:'"
+      - "Autodesk Help GUID-0591351F (AutoCAD 2021)"
+    confidence: high
+  prompts.next_point:
+    sources:
+      - "CAD Forum AREA page — 'Specify next point or [Arc/Length/Undo]:'"
+    confidence: high
+  prompts.add_subtract:
+    sources:
+      - "Arkance UK Community — AutoCAD Calculating Areas using Add and Subtract"
+      - "ISBE lesson plan — Area Command With Add and Subtract Options"
+    confidence: high
+  visual_feedback:
+    sources:
+      - "Arkance UK Community — 'GREEN area is the Area being Added and Pink area is the Area being Subtracted'"
+    confidence: medium
+  sysvars.AREA:
+    sources:
+      - "Autodesk Help — AREA system variable"
+      - "afralisp.net AutoCAD System Variables reference"
+    confidence: high
+  sysvars.PERIMETER:
+    sources:
+      - "Autodesk Help GUID-A4F61BB1 — PERIMETER system variable"
+    confidence: high
+
+unverified:
+  - exact prompt wording in Add/Subtract mode — '(ADD mode) Select object:' vs 'Select objects:' with mode indicator
+  - whether Arc sub-options (Angle, CEnter, Direction, Radius, Second pt) work the same as in PLINE
+  - whether the green/pink visual feedback is available in all AutoCAD versions or only recent ones
+  - whether AREA command running total persists if you switch between Add and Subtract modes
+  - whether open polylines have their area computed by adding a closing segment or are rejected
+  - exact behavior of Length sub-option — direction of the line segment added

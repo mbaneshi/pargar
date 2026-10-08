@@ -1,0 +1,345 @@
+# AutoCAD ARC — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: ARC
+category: draw
+aliases: [A]
+shortcut: A
+
+description: |
+  Creates an arc. Supports 10+ entry modes: 3-point (default), Start/Center/End,
+  Start/Center/Angle, Start/Center/Length, Start/End/Angle, Start/End/Direction,
+  Start/End/Radius, Center/Start/End, Center/Start/Angle, Center/Start/Length.
+  Arcs are drawn counterclockwise by default. Pressing Enter at the first prompt
+  continues tangent to the last line or arc.
+
+prompts:
+  # === Default 3-point entry ===
+  - id: start_point
+    text: "Specify start point of arc or [Center]:"
+    accepts:
+      - kind: pick
+        action: store_start_then_advance(second_point)
+      - kind: number
+        action: store_start_then_advance(second_point)
+      - kind: keyword
+        value: CE
+        long: Center
+        action: advance(center_first)
+      - kind: enter
+        condition: previous entity was LINE or ARC
+        action: continue_tangent_from_last_entity_then_advance(tangent_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_point
+    text: "Specify second point of arc or [Center/End]:"
+    accepts:
+      - kind: pick
+        action: store_second_then_advance(three_point_end)
+      - kind: number
+        action: store_second_then_advance(three_point_end)
+      - kind: keyword
+        value: CE
+        long: Center
+        action: advance(start_center_point)
+      - kind: keyword
+        value: E
+        long: End
+        action: advance(start_end_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: three_point_end
+    text: "Specify end point of arc:"
+    accepts:
+      - kind: pick
+        action: create_3point_arc_then_end
+      - kind: number
+        action: create_3point_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Tangent continuation (Enter at first prompt) ===
+  - id: tangent_endpoint
+    text: "Specify end point of arc:"
+    note: |
+      Arc is drawn tangent to the previous line/arc entity. Only the
+      endpoint is needed; direction is derived from the last entity.
+    accepts:
+      - kind: pick
+        action: create_tangent_arc_then_end
+      - kind: number
+        action: create_tangent_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Start, Center, ... paths ===
+  - id: start_center_point
+    text: "Specify center point of arc:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(start_center_options)
+      - kind: number
+        action: store_center_then_advance(start_center_options)
+      - kind: escape
+        action: cancel_command
+
+  - id: start_center_options
+    text: "Specify end point of arc or [Angle/chord Length]:"
+    accepts:
+      - kind: pick
+        action: create_SCE_arc_then_end
+      - kind: number
+        action: create_SCE_arc_then_end
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(start_center_angle)
+      - kind: keyword
+        value: L
+        long: chord Length
+        action: advance(start_center_length)
+      - kind: escape
+        action: cancel_command
+
+  - id: start_center_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_SCA_arc_then_end
+      - kind: pick
+        action: create_SCA_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: start_center_length
+    text: "Specify length of chord:"
+    accepts:
+      - kind: number
+        action: create_SCL_arc_then_end
+      - kind: pick
+        action: create_SCL_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Start, End, ... paths ===
+  - id: start_end_point
+    text: "Specify end point of arc:"
+    accepts:
+      - kind: pick
+        action: store_endpoint_then_advance(start_end_options)
+      - kind: number
+        action: store_endpoint_then_advance(start_end_options)
+      - kind: escape
+        action: cancel_command
+
+  - id: start_end_options
+    text: "Specify center point of arc or [Angle/Direction/Radius]:"
+    accepts:
+      - kind: pick
+        action: create_SEC_arc_then_end
+      - kind: number
+        action: create_SEC_arc_then_end
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(start_end_angle)
+      - kind: keyword
+        value: D
+        long: Direction
+        action: advance(start_end_direction)
+      - kind: keyword
+        value: R
+        long: Radius
+        action: advance(start_end_radius)
+      - kind: escape
+        action: cancel_command
+
+  - id: start_end_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_SEA_arc_then_end
+      - kind: pick
+        action: create_SEA_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: start_end_direction
+    text: "Specify tangent direction for the start point of arc:"
+    accepts:
+      - kind: number
+        action: create_SED_arc_then_end
+      - kind: pick
+        action: create_SED_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: start_end_radius
+    text: "Specify radius of arc:"
+    accepts:
+      - kind: number
+        action: create_SER_arc_then_end
+      - kind: pick
+        action: create_SER_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Center-first paths ===
+  - id: center_first
+    text: "Specify center point of arc:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(center_start_point)
+      - kind: number
+        action: store_center_then_advance(center_start_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_start_point
+    text: "Specify start point of arc:"
+    accepts:
+      - kind: pick
+        action: store_start_then_advance(center_start_options)
+      - kind: number
+        action: store_start_then_advance(center_start_options)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_start_options
+    text: "Specify end point of arc or [Angle/chord Length]:"
+    accepts:
+      - kind: pick
+        action: create_CSE_arc_then_end
+      - kind: number
+        action: create_CSE_arc_then_end
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(center_start_angle)
+      - kind: keyword
+        value: L
+        long: chord Length
+        action: advance(center_start_length)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_start_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_CSA_arc_then_end
+      - kind: pick
+        action: create_CSA_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: center_start_length
+    text: "Specify length of chord:"
+    accepts:
+      - kind: number
+        action: create_CSL_arc_then_end
+      - kind: pick
+        action: create_CSL_arc_then_end
+      - kind: escape
+        action: cancel_command
+
+arc_direction:
+  description: |
+    By default, arcs are drawn counterclockwise. A negative included angle
+    creates a clockwise arc. Holding Ctrl while dragging also draws clockwise
+    (AutoCAD 2024+).
+
+sysvars_read:
+  - LASTPOINT      # for tangent continuation
+  - ORTHOMODE
+  - OSMODE
+  - ANGDIR         # 0 = counterclockwise, 1 = clockwise
+
+sysvars_written:
+  - LASTPOINT      # updated to arc endpoint
+
+sysvar_definitions:
+  ANGDIR:
+    type: integer
+    default: 0
+    valid_values:
+      0: Counterclockwise (default)
+      1: Clockwise
+    persistence: drawing
+    notes: Controls the positive angle direction for arc included angles.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command
+  esc_twice: cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: A = ARC"
+    confidence: high
+  prompts.start_point:
+    sources:
+      - "Autodesk ARC Command reference (2016, 2022, 2024)"
+      - "BricsCAD ARC command docs"
+      - "autocad123.blogspot.com ARC command tutorial"
+    confidence: high
+  prompts.second_point:
+    sources:
+      - "Autodesk ARC Command reference: 'Specify second point of arc or [Center/End]:'"
+      - "BricsCAD: 'Enter second point or [Angle/Center/Direction/End/Radius]:'"
+    confidence: high
+    note: |
+      AutoCAD uses [Center/End] at second point; BricsCAD offers more options
+      at the second prompt. This spec follows AutoCAD's prompt.
+  prompts.start_center_options:
+    sources:
+      - "Autodesk ARC Command reference: 'Specify end point of arc or [Angle/chord Length]:'"
+    confidence: high
+  prompts.start_end_options:
+    sources:
+      - "Autodesk ARC Command reference: 'Specify center point of arc or [Angle/Direction/Radius]:'"
+      - "CAD Master Coach ARC command guide"
+    confidence: high
+  prompts.center_start_options:
+    sources:
+      - "Autodesk ARC Command reference"
+    confidence: high
+  arc_direction:
+    sources:
+      - "Autodesk blog: Mastering the AutoCAD Arc Command"
+      - "Autodesk help: About Arcs"
+    confidence: high
+  tangent_continuation:
+    sources:
+      - "Autodesk ARC Command reference: Enter at first prompt continues tangent"
+      - "CAD Master Coach: continue tangent to last line/arc"
+    confidence: high
+
+unverified:
+  - exact prompt for Start/End/Direction — "Specify tangent direction for the start point of arc:" may differ in wording
+  - whether Ctrl+drag for clockwise was introduced in 2024 or earlier
+  - exact prompt for tangent continuation endpoint — may show additional options
+  - BricsCAD's second-point prompt offers [Angle/Center/Direction/End/Radius] — AutoCAD may be simpler with just [Center/End]; needs live verification

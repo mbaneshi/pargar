@@ -1,0 +1,51 @@
+---
+title: مشارکت
+description: چطور کمک کنید؛ از گزارش ده‌دقیقه‌ای یک باگ تا کار روی هسته.
+---
+
+import { CardGrid, Card, LinkButton } from "@astrojs/starlight/components";
+
+پرگار آشکارا و در جمع ساخته می‌شود. کد، گزارش باگ، یافته‌های هم‌ترازی با AutoCAD، ترجمه و مستندات، همه خوش‌آمدند.
+
+<CardGrid>
+  <Card title="امتحان کنید و گزارش دهید" icon="warning">
+    یک مرورگر و ده دقیقه وقت دارید؟ با [cad.houshkar.ir](https://cad.houshkar.ir) کار کنید و هر جا چیزی خراب شد گزارش دهید: گام‌ها، انتظار در برابر واقعیت، و مرورگرتان.
+    [ثبت Issue ←](https://github.com/mbaneshi/pargar/issues/new)
+  </Card>
+  <Card title="AutoCAD بلدید؟" icon="pencil">
+    رفتار یک فرمان را با AutoCAD مقایسه کنید و اگر فرقی دیدید، ثبتش کنید. مشخصات در `notes/specs/autocad-2d/` است.
+  </Card>
+  <Card title="Rust می‌نویسید؟" icon="seti:rust">
+    کار روی هسته در `packages/kernel`: هندسه، فرمان‌ها، DXF.
+  </Card>
+  <Card title="TypeScript / Svelte می‌نویسید؟" icon="seti:svelte">
+    رابط کاربری، رندرگر و ورود و خروج فایل در `packages/app`، `packages/renderer` و `packages/file-io`.
+  </Card>
+  <Card title="ترجمه" icon="translate">
+    این سایت انگلیسی و فارسی است و رابط برنامه هم ترجمه می‌خواهد. برای خوانندهٔ بومی بنویسید، نه کلمه‌به‌کلمه.
+  </Card>
+  <Card title="از کار کوچک شروع کنید" icon="star">
+    برچسب‌های [good first issue](https://github.com/mbaneshi/pargar/labels/good%20first%20issue) و [help wanted](https://github.com/mbaneshi/pargar/labels/help%20wanted) را ببینید.
+  </Card>
+</CardGrid>
+
+## درخواست ادغام (PR)
+
+1. اول یک Issue باز کنید یا پیدا کنید، و برای هر کار غیربدیهی، روی راه‌حل همان‌جا به توافق برسید.
+2. از شاخهٔ **`dev`** (شاخهٔ پیش‌فرض) منشعب شوید. `main` فقط با انتشار نسخه جلو می‌رود.
+3. PR را متمرکز نگه دارید، Issue را پیوند دهید (`Closes #N`) و CI را سبز کنید.
+4. هر عملیات یک فرمان است: اگر انسان کاری را در رابط کاربری می‌کند، عامل هم باید بتواند با همان فرمان انجامش دهد.
+5. هرگز رازی (secret) را در مخزن نگذارید. مقدارهای `VITE_*` عمداً عمومی‌اند.
+6. CI فقط روی اجراکننده‌های میزبانی‌شدهٔ گیت‌هاب اجرا می‌شود.
+
+پیش از هر چیز [هفت قاعده](/pargar/fa/architecture/) را بخوانید؛ هر بازبینی تغییرها را با آن‌ها می‌سنجد.
+
+## امنیت
+
+آسیب‌پذیری پیدا کرده‌اید؟ **Issue عمومی باز نکنید.** طبق [`SECURITY.md`](https://github.com/mbaneshi/pargar/blob/dev/SECURITY.md) آن را خصوصی گزارش دهید.
+
+## مجوز
+
+مشارکت‌ها برای کد با مجوز Apache-2.0 و برای مستندات و ترجمه‌ها با CC BY 4.0 منتشر می‌شوند. همه از [آیین‌نامهٔ رفتار](https://github.com/mbaneshi/pargar/blob/dev/CODE_OF_CONDUCT.md) پیروی می‌کنند.
+
+<LinkButton href="https://github.com/mbaneshi/pargar/blob/dev/CONTRIBUTING.md" icon="external">خواندن CONTRIBUTING.md</LinkButton>

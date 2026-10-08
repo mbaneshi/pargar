@@ -1,0 +1,179 @@
+# AutoCAD DIMALIGNED — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: DIMALIGNED
+category: dimension
+aliases: [DAL]
+shortcut: DAL
+
+description: |
+  Creates an aligned linear dimension. The dimension line is parallel to the line
+  between the two extension line origins, measuring the true distance between them
+  (not just horizontal or vertical). Uses the current DIMSTYLE.
+
+prompts:
+  - id: first_ext_origin
+    text: "Specify first extension line origin or <select object>:"
+    accepts:
+      - kind: pick
+        action: set_first_origin_then_advance(second_ext_origin)
+      - kind: enter
+        action: advance(select_object)
+        note: pressing Enter allows selecting an object to auto-extract dimension points
+      - kind: escape
+        action: cancel_command
+
+  - id: select_object
+    text: "Select object to dimension:"
+    accepts:
+      - kind: pick
+        action: auto_extract_origins_then_advance(dim_line_location)
+        note: |
+          For lines, uses the two endpoints. For arcs, uses the two endpoints.
+          For circles, uses the diameter endpoints at the pick point.
+          For polyline segments, uses the segment endpoints.
+      - kind: escape
+        action: cancel_command
+
+  - id: second_ext_origin
+    text: "Specify second extension line origin:"
+    accepts:
+      - kind: pick
+        action: set_second_origin_then_advance(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: dim_line_location
+    text: "Specify dimension line location or [Mtext/Text/Angle]:"
+    accepts:
+      - kind: pick
+        action: place_dimension_then_end
+        note: |
+          The dimension line is placed parallel to the line between the two
+          extension line origins. The pick point determines the offset distance
+          of the dimension line from the measured segment.
+      - kind: keyword
+        value: M
+        long: Mtext
+        action: open_mtext_editor_then_return(dim_line_location)
+        note: opens the In-Place Text Editor for multiline dimension text
+      - kind: keyword
+        value: T
+        long: Text
+        action: advance(text_override)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(text_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_override
+    text: "Enter dimension text <{MEASURED_VALUE}>:"
+    accepts:
+      - kind: number
+        action: set_text_override_then_return(dim_line_location)
+      - kind: enter
+        action: use_measured_value_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_angle
+    text: "Specify angle of dimension text:"
+    accepts:
+      - kind: number
+        action: set_text_angle_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - DIMSTYLE       # current dimension style name
+  - DIMSCALE       # overall dimension scale factor
+  - DIMTXT         # dimension text height
+  - DIMASZ         # arrowhead size
+  - DIMDEC         # decimal places for primary units
+  - DIMLFAC        # linear scale factor for dimension values
+  - DIMTAD         # text placement above/below dimension line
+  - DIMGAP         # gap between dimension line and text
+  - DIMEXE         # extension line extension beyond dimension line
+  - DIMEXO         # extension line offset from origin
+  - DIMUPT         # user-positioned text (0=off, 1=on)
+
+sysvars_written: []
+
+sysvar_definitions:
+  DIMSTYLE:
+    type: string
+    default: Standard
+    persistence: drawing
+    notes: Name of the active dimension style. All DIM* variables are overridden by style settings.
+  DIMSCALE:
+    type: real
+    default: 1.0
+    persistence: drawing
+    notes: Global scale factor applied to all dimension geometry (text, arrows, gaps).
+  DIMDEC:
+    type: integer
+    default: 4
+    persistence: drawing
+    notes: Number of decimal places for primary dimension units.
+  DIMLFAC:
+    type: real
+    default: 1.0
+    persistence: drawing
+    notes: Scale factor for linear dimension measurements. Multiplied by measured distance.
+
+repeats_with_space: false
+repeats_with_enter: false
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_no_entity_created
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — DAL"
+    confidence: high
+  prompts.first_ext_origin:
+    sources:
+      - "Autodesk Help GUID-D7C05A85 (AutoCAD 2018-2022)"
+      - "BricsCAD DIMALIGNED docs"
+    confidence: high
+  prompts.dim_line_location:
+    sources:
+      - "Autodesk Help GUID-D7C05A85 — confirms [Mtext/Text/Angle]"
+      - "BricsCAD DIMALIGNED docs"
+    confidence: high
+    note: |
+      DIMALIGNED has [Mtext/Text/Angle] only — no Horizontal/Vertical/Rotated
+      options because the dimension is always aligned to the two origin points.
+  sysvars:
+    sources:
+      - "Autodesk Help dimension system variables"
+      - "Scribd DimVar document"
+    confidence: high
+
+unverified:
+  - exact prompt wording for first extension line origin — may say 'press ENTER to select object' vs '<select object>'
+  - whether DIMALIGNED repeats with Space/Enter
+  - behavior when dimensioning a circle vs line vs arc for auto-extraction of origins
+  - whether the Text option uses angle brackets <> for measured value or just displays the number

@@ -1,0 +1,146 @@
+# AutoCAD MIRROR — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: MIRROR
+category: modify
+aliases: [MI]
+shortcut: MI
+
+description: |
+  Creates a mirrored copy of selected objects about a specified mirror line
+  defined by two points. Optionally deletes the source objects after mirroring.
+  Text mirroring is controlled by the MIRRTEXT system variable.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        condition: selection_set_non_empty
+        action: advance(first_mirror_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: first_mirror_point
+    text: "Specify first point of mirror line:"
+    accepts:
+      - kind: pick
+        action: set_first_mirror_point_then_advance(second_mirror_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_mirror_point
+    text: "Specify second point of mirror line:"
+    accepts:
+      - kind: pick
+        action: set_second_mirror_point_then_advance(erase_source)
+      - kind: escape
+        action: cancel_command
+
+  - id: erase_source
+    text: "Erase source objects? [Yes/No] <N>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        long: Yes
+        action: emit_mirror_and_delete_source_then_end
+      - kind: keyword
+        value: N
+        long: No
+        action: emit_mirror_keep_source_then_end
+      - kind: enter
+        action: emit_mirror_keep_source_then_end
+      - kind: escape
+        action: cancel_command
+
+mirror_line_behavior:
+  description: |
+    The mirror line can be at any angle. A rubber-band preview shows
+    the mirrored result as the second point is being specified.
+    The mirror line itself is not drawn as a permanent object.
+
+text_mirroring:
+  description: |
+    When MIRRTEXT = 0, text objects retain their original readable
+    direction after mirroring (the text is NOT reversed).
+    When MIRRTEXT = 1, text is mirrored just like any other object,
+    resulting in reversed/backwards text.
+
+sysvars_read:
+  - MIRRTEXT         # controls whether text objects are mirrored
+
+sysvars_written: []
+
+sysvar_definitions:
+  MIRRTEXT:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: Text retains original direction (not mirrored) — default since AutoCAD 2005+
+      1: Text is mirrored like geometry (reversed)
+    notes: |
+      Controls how the MIRROR command reflects text objects.
+      Default was changed from 1 to 0 around AutoCAD 2005. Saved per-drawing.
+      Applies to TEXT, MTEXT, and ATTDEF objects.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Multiple community alias lists confirm MI as the MIRROR alias"
+    confidence: high
+  prompts.erase_source:
+    sources:
+      - "AutoCAD 2024 Help MIRROR command reference (GUID-595277C8)"
+      - "https://cadmastercoach.com/commands/mirror"
+      - "https://www.dummies.com/article/technology/software/design-software/autocad/use-mirror-command-autocad-222119/"
+      - "https://www.coohom.com/article/autocad-mirror-command-prompt-erase-source-object"
+    confidence: high
+  prompts.mirror_line:
+    sources:
+      - "https://www.tutorial-autocad.com/mirror-command"
+      - "BricsCAD MIRROR command reference"
+    confidence: high
+  sysvars.MIRRTEXT:
+    sources:
+      - "AutoCAD 2026 Help MIRRTEXT system variable (GUID-D55D2D18)"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2020/ENU/AutoCAD-Core/files/GUID-D55D2D18-B26E-4525-B5E4-03A2A07FB5F6-htm.html"
+      - "Autodesk Forum thread: permanently setting MIRRTEXT"
+    confidence: high
+  sysvars.MIRRTEXT_default:
+    sources:
+      - "https://www.dummies.com/article/technology/software/design-software/autocad/use-mirror-command-autocad-222119/"
+    confidence: medium
+    note: Default value of 0 confirmed for modern AutoCAD; older versions defaulted to 1.
+
+unverified:
+  - exact wording of "Erase source objects? [Yes/No] <N>:" — the default indicator may be <No> instead of <N>
+  - exact version when MIRRTEXT default changed from 1 to 0 (reported as ~2005 but not pinpointed)
+  - whether MIRRTEXT affects ATTDEF objects or only TEXT/MTEXT — needs live verification

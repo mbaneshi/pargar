@@ -1,0 +1,45 @@
+# Build context for the cad.houshkar.ir image. The Dockerfile does `COPY . .`,
+# so everything not listed here invalidates the pnpm/cargo layers when it changes.
+#
+# packages/app/.env is deliberately NOT ignored: on the build host it is the untracked file
+# Vite bakes into the static build (see packages/app/.env.example).
+
+# VCS, CI, agent tooling
+.git
+.github
+.claude
+.worktrees
+.playwright-mcp
+.mcp.json
+.envrc
+.sid-identity
+.worker-tab-id
+.last-good-sha
+
+# Not needed to build the app
+docs
+notes
+e2e
+infra
+cloudflare
+supabase
+/*.md
+/*.png
+/LICENSE
+/ledger.jsonl
+/codecov.yml
+/playwright*.config.ts
+
+# Local build output and caches (rebuilt inside the image)
+**/node_modules
+**/target
+**/.turbo
+**/.svelte-kit
+**/coverage
+packages/kernel/pkg
+packages/app/build
+packages/*/dist
+
+# Local-only env variants; only packages/app/.env is meant to reach the build
+**/.env.local
+**/.env.*.local

@@ -1,0 +1,204 @@
+# AutoCAD LENGTHEN — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: LENGTHEN
+category: modify
+aliases: [LEN]
+shortcut: LEN
+
+description: |
+  Changes the length of lines, arcs, open polylines, elliptical arcs, and open
+  splines. Can also change the included angle of arcs. Selecting an object without
+  choosing an option first reports its current length and included angle (if arc).
+
+prompts:
+  - id: select_or_option
+    text: "Select an object or [DElta/Percent/Total/DYnamic]:"
+    accepts:
+      - kind: pick
+        action: report_length_then_loop(select_or_option)
+        note: selecting an object without a mode set reports its current length/angle
+      - kind: keyword
+        value: DE
+        long: DElta
+        action: advance(delta_length)
+      - kind: keyword
+        value: P
+        long: Percent
+        action: advance(percent_value)
+      - kind: keyword
+        value: T
+        long: Total
+        action: advance(total_length)
+      - kind: keyword
+        value: DY
+        long: DYnamic
+        action: advance(select_object_dynamic)
+      - kind: enter
+        action: cancel_command
+      - kind: escape
+        action: cancel_command
+
+  - id: delta_length
+    text: "Enter delta length or [Angle] <{LAST_DELTA}>:"
+    accepts:
+      - kind: number
+        action: set_delta_then_advance(select_object_to_change)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(delta_angle)
+      - kind: enter
+        condition: LAST_DELTA exists
+        action: use_default_then_advance(select_object_to_change)
+      - kind: escape
+        action: cancel_command
+
+  - id: delta_angle
+    text: "Enter delta angle <{LAST_DELTA_ANGLE}>:"
+    accepts:
+      - kind: number
+        action: set_delta_angle_then_advance(select_object_to_change)
+      - kind: enter
+        condition: LAST_DELTA_ANGLE exists
+        action: use_default_then_advance(select_object_to_change)
+      - kind: escape
+        action: cancel_command
+
+  - id: percent_value
+    text: "Enter percentage length <{LAST_PERCENT}>:"
+    accepts:
+      - kind: number
+        action: set_percent_then_advance(select_object_to_change)
+        note: 100 = no change; >100 lengthens; <100 shortens
+      - kind: enter
+        condition: LAST_PERCENT exists
+        action: use_default_then_advance(select_object_to_change)
+      - kind: escape
+        action: cancel_command
+
+  - id: total_length
+    text: "Specify total length or [Angle] <{LAST_TOTAL}>:"
+    accepts:
+      - kind: number
+        action: set_total_then_advance(select_object_to_change)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(total_angle)
+      - kind: enter
+        condition: LAST_TOTAL exists
+        action: use_default_then_advance(select_object_to_change)
+      - kind: escape
+        action: cancel_command
+
+  - id: total_angle
+    text: "Specify total angle <{LAST_TOTAL_ANGLE}>:"
+    accepts:
+      - kind: number
+        action: set_total_angle_then_advance(select_object_to_change)
+      - kind: enter
+        condition: LAST_TOTAL_ANGLE exists
+        action: use_default_then_advance(select_object_to_change)
+      - kind: escape
+        action: cancel_command
+
+  - id: select_object_to_change
+    text: "Select an object to change or [Undo]:"
+    accepts:
+      - kind: pick
+        action: lengthen_nearest_endpoint_then_loop(select_object_to_change)
+        note: the endpoint closest to the pick point is the one that moves
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_lengthen_in_command
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: select_object_dynamic
+    text: "Select an object to change or [Undo]:"
+    accepts:
+      - kind: pick
+        action: enter_dynamic_drag_mode
+        note: dragging the picked endpoint dynamically changes the length
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_lengthen_in_command
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+sysvars_read: []
+sysvars_written: []
+
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "CAD Forum command page — LENGTHEN (cadforum.cz)"
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix"
+    confidence: high
+  prompts.select_or_option:
+    sources:
+      - "CAD Forum: 'Select an object to measure or [DElta/Percent/Total/DYnamic]'"
+      - "Autodesk Help GUID-76C74C62 (AutoCAD 2024)"
+      - "cadmastercoach.com LENGTHEN command reference"
+    confidence: high
+    note: |
+      CAD Forum shows 'to measure' in the first prompt when no mode is set.
+      After a mode is chosen the prompt changes to 'to change'. Synthesized
+      to 'Select an object or [...]' for initial prompt; exact wording may
+      include 'to measure' in AutoCAD.
+  prompts.delta_length:
+    sources:
+      - "Autodesk Help GUID-76C74C62"
+      - "cadmastercoach.com — Delta option description"
+    confidence: medium
+  prompts.select_object_to_change:
+    sources:
+      - "Autodesk Help GUID-76C74C62"
+      - "LearnVern AutoCAD Lengthen tutorial"
+    confidence: medium
+  prompts.dynamic:
+    sources:
+      - "Autodesk Help GUID-76C74C62"
+      - "cadmastercoach.com — DYnamic option"
+    confidence: medium
+
+unverified:
+  - exact prompt wording — 'Select an object or [DElta/Percent/Total/DYnamic]' vs 'Select an object to measure or ...' — first prompt may say 'to measure', subsequent may say 'to change'
+  - whether LENGTHEN stores last-used delta/percent/total values in a sysvar or only in session memory
+  - whether Undo sub-option is available in all modes (DElta, Percent, Total, DYnamic) or only some
+  - exact default value shown in angle brackets for delta/percent/total prompts
+  - whether DYnamic mode supports Undo

@@ -1,0 +1,572 @@
+# AutoCAD ARRAY — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: ARRAY
+category: modify
+aliases: [AR]
+shortcut: AR
+
+description: |
+  Creates copies of objects arranged in a rectangular, polar, or path pattern.
+  Modern AutoCAD (2012+) creates associative arrays by default using ARRAYRECT,
+  ARRAYPOLAR, or ARRAYPATH sub-commands. The legacy -ARRAY command creates
+  non-associative 2D rectangular or polar arrays via the command line.
+
+  This spec covers the modern ARRAY command that dispatches to one of three modes,
+  plus the legacy -ARRAY for command-line scripting.
+
+sub_commands:
+  - ARRAYRECT
+  - ARRAYPOLAR
+  - ARRAYPATH
+
+# ─────────────────────────────────────────────
+# ARRAY (top-level dispatcher)
+# ─────────────────────────────────────────────
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        condition: selection_set_non_empty
+        action: advance(array_type)
+      - kind: escape
+        action: cancel_command
+
+  - id: array_type
+    text: "Enter array type [Rectangular/PAth/POlar] <Rectangular>:"
+    accepts:
+      - kind: keyword
+        value: R
+        long: Rectangular
+        action: advance(arrayrect_grip_edit)
+      - kind: keyword
+        value: PA
+        long: PAth
+        action: advance(arraypath_select_path)
+      - kind: keyword
+        value: PO
+        long: POlar
+        action: advance(arraypolar_center_point)
+      - kind: enter
+        action: advance(arrayrect_grip_edit)
+      - kind: escape
+        action: cancel_command
+
+# ─────────────────────────────────────────────
+# ARRAYRECT prompts
+# ─────────────────────────────────────────────
+
+arrayrect_prompts:
+  - id: arrayrect_grip_edit
+    text: "Select grip to edit array or [ASsociative/Base point/COUnt/Spacing/COLumns/Rows/Levels/eXit] <eXit>:"
+    accepts:
+      - kind: pick
+        action: grip_edit_array
+      - kind: keyword
+        value: AS
+        long: ASsociative
+        action: advance(arrayrect_associative)
+      - kind: keyword
+        value: B
+        long: Base point
+        action: advance(arrayrect_base_point)
+      - kind: keyword
+        value: COU
+        long: COUnt
+        action: advance(arrayrect_count)
+      - kind: keyword
+        value: S
+        long: Spacing
+        action: advance(arrayrect_spacing)
+      - kind: keyword
+        value: COL
+        long: COLumns
+        action: advance(arrayrect_columns)
+      - kind: keyword
+        value: R
+        long: Rows
+        action: advance(arrayrect_rows)
+      - kind: keyword
+        value: L
+        long: Levels
+        action: advance(arrayrect_levels)
+      - kind: keyword
+        value: X
+        long: eXit
+        action: emit_array_then_end
+      - kind: enter
+        action: emit_array_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: arrayrect_associative
+    text: "Create associative array [Yes/No] <Yes>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        long: Yes
+        action: set_associative(true)_then_advance(arrayrect_grip_edit)
+      - kind: keyword
+        value: N
+        long: No
+        action: set_associative(false)_then_advance(arrayrect_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_count
+    text: "Enter the number of columns and rows or [Expression] <4x3>:"
+    accepts:
+      - kind: number
+        action: set_count_then_advance(arrayrect_grip_edit)
+      - kind: escape
+        action: cancel_command
+
+  - id: arrayrect_columns
+    text: "Enter the number of columns or [Expression] <4>:"
+    accepts:
+      - kind: number
+        action: set_columns_then_advance(arrayrect_column_spacing)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_column_spacing
+    text: "Specify the distance between columns or [Total/Expression] <{COLUMN_SPACING}>:"
+    accepts:
+      - kind: number
+        action: set_column_spacing_then_advance(arrayrect_grip_edit)
+      - kind: keyword
+        value: T
+        long: Total
+        action: advance(arrayrect_total_column_distance)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_rows
+    text: "Enter the number of rows or [Expression] <3>:"
+    accepts:
+      - kind: number
+        action: set_rows_then_advance(arrayrect_row_spacing)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_row_spacing
+    text: "Specify the distance between rows or [Total/Expression] <{ROW_SPACING}>:"
+    accepts:
+      - kind: number
+        action: set_row_spacing_then_advance(arrayrect_grip_edit)
+      - kind: keyword
+        value: T
+        long: Total
+        action: advance(arrayrect_total_row_distance)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_levels
+    text: "Enter the number of levels or [Expression] <1>:"
+    accepts:
+      - kind: number
+        action: set_levels_then_advance(arrayrect_level_spacing)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+  - id: arrayrect_level_spacing
+    text: "Specify the distance between levels <1>:"
+    accepts:
+      - kind: number
+        action: set_level_spacing_then_advance(arrayrect_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arrayrect_grip_edit)
+
+# ─────────────────────────────────────────────
+# ARRAYPOLAR prompts
+# ─────────────────────────────────────────────
+
+arraypolar_prompts:
+  - id: arraypolar_center_point
+    text: "Specify center point of array or [Base point/Axis of rotation]:"
+    accepts:
+      - kind: pick
+        action: set_center_then_advance(arraypolar_grip_edit)
+      - kind: keyword
+        value: B
+        long: Base point
+        action: advance(arraypolar_base_point)
+      - kind: keyword
+        value: A
+        long: Axis of rotation
+        action: advance(arraypolar_axis)
+      - kind: escape
+        action: cancel_command
+
+  - id: arraypolar_grip_edit
+    text: "Select grip to edit array or [ASsociative/Base point/Items/Angle between/Fill angle/ROWs/Levels/ROTate items/eXit] <eXit>:"
+    accepts:
+      - kind: pick
+        action: grip_edit_array
+      - kind: keyword
+        value: AS
+        long: ASsociative
+        action: advance(arraypolar_associative)
+      - kind: keyword
+        value: B
+        long: Base point
+        action: advance(arraypolar_base_point)
+      - kind: keyword
+        value: I
+        long: Items
+        action: advance(arraypolar_items)
+      - kind: keyword
+        value: A
+        long: Angle between
+        action: advance(arraypolar_angle_between)
+      - kind: keyword
+        value: F
+        long: Fill angle
+        action: advance(arraypolar_fill_angle)
+      - kind: keyword
+        value: ROW
+        long: ROWs
+        action: advance(arraypolar_rows)
+      - kind: keyword
+        value: L
+        long: Levels
+        action: advance(arraypolar_levels)
+      - kind: keyword
+        value: ROT
+        long: ROTate items
+        action: advance(arraypolar_rotate_items)
+      - kind: keyword
+        value: X
+        long: eXit
+        action: emit_array_then_end
+      - kind: enter
+        action: emit_array_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: arraypolar_associative
+    text: "Create associative array [Yes/No] <Yes>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_associative(true)_then_advance(arraypolar_grip_edit)
+      - kind: keyword
+        value: N
+        action: set_associative(false)_then_advance(arraypolar_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypolar_grip_edit)
+
+  - id: arraypolar_items
+    text: "Enter number of items or [Expression] <6>:"
+    accepts:
+      - kind: number
+        action: set_item_count_then_advance(arraypolar_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypolar_grip_edit)
+
+  - id: arraypolar_angle_between
+    text: "Specify the angle between items or [Expression] <60>:"
+    accepts:
+      - kind: number
+        action: set_angle_between_then_advance(arraypolar_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypolar_grip_edit)
+
+  - id: arraypolar_fill_angle
+    text: "Specify the fill angle or [Expression] <360>:"
+    accepts:
+      - kind: number
+        action: set_fill_angle_then_advance(arraypolar_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypolar_grip_edit)
+
+  - id: arraypolar_rotate_items
+    text: "Rotate arrayed items? [Yes/No] <Yes>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_rotate_items(true)_then_advance(arraypolar_grip_edit)
+      - kind: keyword
+        value: N
+        action: set_rotate_items(false)_then_advance(arraypolar_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypolar_grip_edit)
+
+# ─────────────────────────────────────────────
+# ARRAYPATH prompts
+# ─────────────────────────────────────────────
+
+arraypath_prompts:
+  - id: arraypath_select_path
+    text: "Select path curve:"
+    accepts:
+      - kind: pick
+        action: set_path_then_advance(arraypath_grip_edit)
+      - kind: escape
+        action: cancel_command
+
+  - id: arraypath_grip_edit
+    text: "Select grip to edit array or [ASsociative/Method/Base point/Tangent direction/Items/Rows/Levels/Align items/Z direction/eXit] <eXit>:"
+    accepts:
+      - kind: pick
+        action: grip_edit_array
+      - kind: keyword
+        value: AS
+        long: ASsociative
+        action: advance(arraypath_associative)
+      - kind: keyword
+        value: M
+        long: Method
+        action: advance(arraypath_method)
+      - kind: keyword
+        value: B
+        long: Base point
+        action: advance(arraypath_base_point)
+      - kind: keyword
+        value: T
+        long: Tangent direction
+        action: advance(arraypath_tangent)
+      - kind: keyword
+        value: I
+        long: Items
+        action: advance(arraypath_items)
+      - kind: keyword
+        value: R
+        long: Rows
+        action: advance(arraypath_rows)
+      - kind: keyword
+        value: L
+        long: Levels
+        action: advance(arraypath_levels)
+      - kind: keyword
+        value: A
+        long: Align items
+        action: advance(arraypath_align)
+      - kind: keyword
+        value: Z
+        long: Z direction
+        action: advance(arraypath_z_direction)
+      - kind: keyword
+        value: X
+        long: eXit
+        action: emit_array_then_end
+      - kind: enter
+        action: emit_array_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: arraypath_method
+    text: "Enter path method [Divide/Measure] <Divide>:"
+    accepts:
+      - kind: keyword
+        value: D
+        long: Divide
+        action: set_method(divide)_then_advance(arraypath_grip_edit)
+      - kind: keyword
+        value: M
+        long: Measure
+        action: set_method(measure)_then_advance(arraypath_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypath_grip_edit)
+
+  - id: arraypath_items
+    text: "Enter number of items along path or [Expression] <{ITEM_COUNT}>:"
+    accepts:
+      - kind: number
+        action: set_item_count_then_advance(arraypath_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypath_grip_edit)
+
+  - id: arraypath_align
+    text: "Align arrayed items to path? [Yes/No] <Yes>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_align(true)_then_advance(arraypath_grip_edit)
+      - kind: keyword
+        value: N
+        action: set_align(false)_then_advance(arraypath_grip_edit)
+      - kind: enter
+        action: use_default_then_advance(arraypath_grip_edit)
+
+# ─────────────────────────────────────────────
+# Legacy -ARRAY prompts (command-line only)
+# ─────────────────────────────────────────────
+
+legacy_array_description: |
+  The -ARRAY (dash-ARRAY) command is the legacy command-line version.
+  It creates non-associative 2D rectangular or polar arrays only.
+  No path arrays. No 3D levels.
+
+legacy_array_prompts:
+  - id: legacy_select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        action: advance(legacy_array_type)
+
+  - id: legacy_array_type
+    text: "Enter the type of array [Rectangular/Polar] <R>:"
+    accepts:
+      - kind: keyword
+        value: R
+        long: Rectangular
+        action: advance(legacy_rect_rows)
+      - kind: keyword
+        value: P
+        long: Polar
+        action: advance(legacy_polar_center)
+      - kind: enter
+        action: advance(legacy_rect_rows)
+
+  - id: legacy_rect_rows
+    text: "Enter the number of rows (---) <1>:"
+    accepts:
+      - kind: number
+        action: set_rows_then_advance(legacy_rect_columns)
+      - kind: enter
+        action: use_default_then_advance(legacy_rect_columns)
+
+  - id: legacy_rect_columns
+    text: "Enter the number of columns (|||) <1>:"
+    accepts:
+      - kind: number
+        action: set_columns_then_advance(legacy_rect_row_distance)
+      - kind: enter
+        action: use_default_then_advance(legacy_rect_row_distance)
+
+  - id: legacy_rect_row_distance
+    text: "Enter the distance between rows or specify unit cell (---):"
+    accepts:
+      - kind: number
+        action: set_row_distance_then_advance(legacy_rect_col_distance)
+      - kind: pick
+        action: set_unit_cell_corner1_then_advance(legacy_rect_unit_cell_corner2)
+
+  - id: legacy_rect_col_distance
+    text: "Specify the distance between columns (|||):"
+    accepts:
+      - kind: number
+        action: emit_rect_array_then_end
+
+  - id: legacy_polar_center
+    text: "Specify center point of array:"
+    accepts:
+      - kind: pick
+        action: set_center_then_advance(legacy_polar_items)
+
+  - id: legacy_polar_items
+    text: "Enter the number of items in the array:"
+    accepts:
+      - kind: number
+        action: set_items_then_advance(legacy_polar_fill_angle)
+
+  - id: legacy_polar_fill_angle
+    text: "Specify the angle to fill (+=ccw, -=cw) <360>:"
+    accepts:
+      - kind: number
+        action: set_fill_angle_then_advance(legacy_polar_rotate)
+      - kind: enter
+        action: use_default_then_advance(legacy_polar_rotate)
+
+  - id: legacy_polar_rotate
+    text: "Rotate arrayed objects? [Yes/No] <Y>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: emit_polar_array_rotated_then_end
+      - kind: keyword
+        value: N
+        action: emit_polar_array_not_rotated_then_end
+      - kind: enter
+        action: emit_polar_array_rotated_then_end
+
+sysvars_read:
+  - MAXARRAY          # maximum number of array elements (default 100000)
+
+sysvars_written: []
+
+sysvar_definitions:
+  MAXARRAY:
+    type: integer
+    default: 100000
+    persistence: registry
+    notes: |
+      Limits the maximum number of elements that can be generated by a
+      single ARRAY command. Prevents accidental creation of huge arrays.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Multiple community alias lists confirm AR as the ARRAY alias"
+    confidence: high
+  prompts.array_type:
+    sources:
+      - "AutoCAD 2024 Help ARRAY command reference (GUID-E23F6125)"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2017/ENU/AutoCAD-Core/files/GUID-E23F6125-E5E9-4645-9615-23717902C33B-htm.html"
+    confidence: high
+  prompts.arrayrect:
+    sources:
+      - "AutoCAD 2024 ARRAYRECT CloudHelp (GUID-BB3DA888)"
+      - "https://www.engineering.com/how-to-use-autocads-array-command/"
+    confidence: medium
+    note: Exact prompt wording synthesized from multiple sources. Grip-editing prompts may vary between versions.
+  prompts.arraypolar:
+    sources:
+      - "AutoCAD 2022 ARRAYPOLAR CloudHelp (GUID-A6E74297)"
+      - "https://www.cadtuto.com/arraypolar/"
+    confidence: medium
+  prompts.arraypath:
+    sources:
+      - "AutoCAD 2024 ARRAYPATH CloudHelp (GUID-D36C46CD)"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2021/ENU/AutoCAD-Core/files/GUID-D36C46CD-4E17-4A16-A387-C0B158EA5A9E-htm.html"
+    confidence: medium
+  prompts.legacy_array:
+    sources:
+      - "AutoCAD 2022 -ARRAY CloudHelp (GUID-8336B4CD)"
+      - "https://www.cadforum.cz/en/command.asp?cmd=-ARRAY"
+    confidence: medium
+    note: Legacy prompts confirmed from multiple versions. Row/column distance prompt wording may vary.
+  sysvars.MAXARRAY:
+    sources:
+      - "Multiple community and Autodesk references cite 100000 default"
+    confidence: high
+
+unverified:
+  - exact prompt wording for grip-edit states — synthesized from official docs but never tested live
+  - whether ARRAYRECT count prompt uses "columns and rows" or "columns x rows" format
+  - whether Expression sub-option is available in all versions or only 2012+
+  - exact default item counts (4 columns, 3 rows assumed from docs — may differ)
+  - whether legacy -ARRAY shows "---" and "|||" indicators in prompts or only in docs
+  - whether ARRAYPOLAR "Angle between" vs "Fill angle" defaults are 60/360 or vary by version

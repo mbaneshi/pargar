@@ -1,0 +1,252 @@
+# AutoCAD ROTATE — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: ROTATE
+category: modify
+aliases: [RO]
+shortcut: RO
+
+description: |
+  Rotates objects around a base point. Positive angles rotate counterclockwise
+  (unless ANGDIR is set to 1). Supports Copy and Reference sub-options.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        condition: selection_set_non_empty
+        action: advance(base_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: base_point
+    text: "Specify base point:"
+    accepts:
+      - kind: pick
+        action: set_base_point_then_advance(rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation_angle
+    text: "Specify rotation angle or [Copy/Reference] <{LAST_ANGLE}>:"
+    accepts:
+      - kind: number
+        action: emit_rotate_then_end
+      - kind: pick
+        action: compute_angle_from_base_then_emit_rotate
+      - kind: keyword
+        value: C
+        long: Copy
+        action: set_copy_mode_then_advance(rotation_angle_copy)
+      - kind: keyword
+        value: R
+        long: Reference
+        action: advance(reference_angle)
+      - kind: enter
+        action: use_default_angle_then_emit_rotate
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation_angle_copy
+    text: "Specify rotation angle or [Copy/Reference] <{LAST_ANGLE}>:"
+    accepts:
+      - kind: number
+        action: emit_rotate_copy_then_end
+      - kind: pick
+        action: compute_angle_from_base_then_emit_rotate_copy
+      - kind: keyword
+        value: R
+        long: Reference
+        action: advance(reference_angle_copy)
+      - kind: enter
+        action: use_default_angle_then_emit_rotate_copy
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_angle
+    text: "Specify the reference angle <0>:"
+    accepts:
+      - kind: number
+        action: set_ref_angle_then_advance(new_angle)
+      - kind: pick
+        action: set_ref_angle_first_point_then_advance(reference_angle_second_point)
+      - kind: enter
+        action: use_default_ref_angle_then_advance(new_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_angle_second_point
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_ref_angle_then_advance(new_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle
+    text: "Specify the new angle or [Points] <0>:"
+    accepts:
+      - kind: number
+        action: emit_rotate_ref_then_end
+      - kind: pick
+        action: compute_new_angle_then_emit_rotate_ref
+      - kind: keyword
+        value: P
+        long: Points
+        action: advance(new_angle_points)
+      - kind: enter
+        action: use_default_new_angle_then_emit_rotate_ref
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle_points
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: set_new_angle_first_then_advance(new_angle_second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle_second_point
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_new_angle_from_points_then_emit_rotate_ref
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_angle_copy
+    text: "Specify the reference angle <0>:"
+    accepts:
+      - kind: number
+        action: set_ref_angle_then_advance(new_angle_copy)
+      - kind: pick
+        action: set_ref_angle_first_point_then_advance(reference_angle_second_point_copy)
+      - kind: enter
+        action: use_default_ref_angle_then_advance(new_angle_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_angle_second_point_copy
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_ref_angle_then_advance(new_angle_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle_copy
+    text: "Specify the new angle or [Points] <0>:"
+    accepts:
+      - kind: number
+        action: emit_rotate_ref_copy_then_end
+      - kind: pick
+        action: compute_new_angle_then_emit_rotate_ref_copy
+      - kind: keyword
+        value: P
+        long: Points
+        action: advance(new_angle_points_copy)
+      - kind: enter
+        action: use_default_new_angle_then_emit_rotate_ref_copy
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle_points_copy
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: set_new_angle_first_then_advance(new_angle_second_point_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_angle_second_point_copy
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_new_angle_from_points_then_emit_rotate_ref_copy
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - ANGBASE          # base angle for measuring rotation (default 0 = East)
+  - ANGDIR           # 0 = counterclockwise positive, 1 = clockwise positive
+
+sysvars_written: []
+
+sysvar_definitions:
+  ANGBASE:
+    type: real
+    default: 0
+    persistence: drawing
+    notes: |
+      Sets the base angle 0 direction for the current UCS.
+      Measured from the positive X axis of the current UCS.
+  ANGDIR:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: Counterclockwise (positive angles go CCW)
+      1: Clockwise (positive angles go CW)
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Multiple community alias lists confirm RO as the ROTATE alias"
+      - "https://thecadgeek.com/blog/autocad-rotate-shortcut/"
+    confidence: high
+  prompts.rotation_angle:
+    sources:
+      - "Autodesk AutoCAD 2022 CloudHelp ROTATE command reference"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2020/ENU/AutoCAD-Core/files/GUID-1C265537-FBAC-48D5-B448-B72E777071E5-htm.html"
+      - "Peachpit Drawing with AutoCAD textbook reference"
+    confidence: high
+  prompts.reference_angle:
+    sources:
+      - "Autodesk support article: How to rotate an object based on an existing angle"
+      - "https://sourcecad.com/rotate-scale-reference-autocad/"
+    confidence: high
+  prompts.copy_option:
+    sources:
+      - "Autodesk Forum thread: rotate while copy"
+      - "GstarCAD Move/Rotate/Copy tutorial"
+    confidence: high
+  sysvars:
+    sources:
+      - "AutoCAD general system variable documentation"
+    confidence: medium
+    note: ANGBASE and ANGDIR are standard AutoCAD sysvars; not ROTATE-specific.
+
+unverified:
+  - exact wording of "Specify rotation angle or [Copy/Reference] <0>:" — synthesized from multiple sources; AutoCAD's exact string may differ in punctuation or default display
+  - whether the Reference sub-option shows "Specify the reference angle" or "Specify reference angle" (with/without "the")
+  - whether the new angle prompt includes a [Points] sub-option in all versions — confirmed in AutoCAD 2020+, not verified for older versions
+  - exact default angle displayed in angle prompt (may show last-used angle or 0)

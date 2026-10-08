@@ -1,0 +1,234 @@
+# AutoCAD COPY — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: COPY
+category: modify
+aliases: [CO, CP]
+shortcut: CO
+
+description: |
+  Duplicates selected objects at a specified distance and direction from the
+  originals. By default (COPYMODE=0) the command repeats for multiple copies
+  after specifying the base point, until Enter or Escape ends it. An Array
+  sub-option creates a linear array of copies.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_then_loop(select_objects)
+      - kind: enter
+        action: confirm_selection_then_advance(base_point_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: base_point_or_option
+    text: "Specify base point or [Displacement/mOde] <Displacement>:"
+    accepts:
+      - kind: pick
+        action: set_base_point_then_advance(second_point)
+      - kind: number
+        notes: "coordinate input for base point"
+        action: set_base_point_then_advance(second_point)
+      - kind: keyword
+        value: D
+        long: Displacement
+        action: advance(displacement)
+      - kind: keyword
+        value: O
+        long: mOde
+        action: advance(mode_option)
+      - kind: enter
+        action: advance(displacement)
+      - kind: escape
+        action: cancel_command
+
+  - id: displacement
+    text: "Specify displacement <0.0000, 0.0000, 0.0000>:"
+    notes: |
+      The displacement is interpreted as a relative X,Y,Z vector from the
+      original position. Objects are copied by that vector immediately.
+    accepts:
+      - kind: number
+        notes: "x,y or x,y,z displacement vector"
+        action: emit_copy_by_displacement_then_end
+      - kind: pick
+        action: emit_copy_by_displacement_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: mode_option
+    text: "Enter a copy mode option [Single/Multiple] <Multiple>:"
+    accepts:
+      - kind: keyword
+        value: S
+        long: Single
+        action: set_mode_single_then_advance(base_point_or_option)
+      - kind: keyword
+        value: M
+        long: Multiple
+        action: set_mode_multiple_then_advance(base_point_or_option)
+      - kind: enter
+        action: use_default_then_advance(base_point_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_point
+    text: "Specify second point or [Array] <use first point as displacement>:"
+    accepts:
+      - kind: pick
+        action: emit_copy_then_advance(next_point_or_end)
+      - kind: number
+        action: emit_copy_then_advance(next_point_or_end)
+      - kind: keyword
+        value: A
+        long: Array
+        action: advance(array_count)
+      - kind: enter
+        notes: "uses base point coordinates as relative displacement"
+        action: emit_copy_by_base_as_displacement_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: next_point_or_end
+    text: "Specify second point or [Array/Undo] <use first point as displacement>:"
+    notes: "loops for multiple copies when COPYMODE=0 (multiple mode)"
+    condition: "mode is Multiple"
+    accepts:
+      - kind: pick
+        action: emit_copy_then_loop(next_point_or_end)
+      - kind: number
+        action: emit_copy_then_loop(next_point_or_end)
+      - kind: keyword
+        value: A
+        long: Array
+        action: advance(array_count)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_copy_then_loop(next_point_or_end)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: array_count
+    text: "Enter number of items to array:"
+    accepts:
+      - kind: number
+        action: set_array_count_then_advance(array_second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: array_second_point
+    text: "Specify second point or [Fit]:"
+    notes: |
+      Places the specified number of copies. Default: evenly spaced using the
+      displacement as the increment. Fit: distributes copies between base point
+      and second point.
+    accepts:
+      - kind: pick
+        action: emit_array_copies_then_advance(next_point_or_end)
+      - kind: number
+        action: emit_array_copies_then_advance(next_point_or_end)
+      - kind: keyword
+        value: F
+        long: Fit
+        action: advance(array_fit_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: array_fit_point
+    text: "Specify second point:"
+    notes: "Distributes array copies evenly between base point and this point"
+    accepts:
+      - kind: pick
+        action: emit_array_fit_then_advance(next_point_or_end)
+      - kind: number
+        action: emit_array_fit_then_advance(next_point_or_end)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - COPYMODE      # 0 = multiple (default), 1 = single
+
+sysvars_written: []
+
+sysvar_definitions:
+  COPYMODE:
+    type: integer
+    default: 0
+    persistence: registry
+    valid_values:
+      0: "COPY repeats automatically for multiple copies (default)"
+      1: "COPY creates a single copy then ends"
+    notes: |
+      Stored in registry per user profile. When 0, the command loops at the
+      second-point prompt for additional copies. When 1, the command ends
+      after one copy. Can be changed mid-command via the mOde option.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_completed_copies
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — CO = COPY, CP = COPY"
+      - "https://www.g-wlearning.com/cad/0633/resources/data/app_d.pdf"
+    confidence: high
+  prompts.base_point_or_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2021/ENU/AutoCAD-Core/files/GUID-1CF9287F-06E8-4D03-8377-2E130862FE02-htm.html"
+      - "https://cadmastercoach.com/commands/modify/copy"
+    confidence: high
+  prompts.second_point:
+    sources:
+      - "Autodesk Knowledge Network COPY 2021"
+      - "Multiple community references confirm Array and Undo sub-options"
+    confidence: high
+  prompts.displacement:
+    sources:
+      - "https://ukcommunity.arkance.world/hc/en-us/articles/25494568239122-Main-AutoCAD-Edit-Command-3B-Copy-Displacement"
+      - "Autodesk Knowledge Network COPY 2021"
+    confidence: high
+  prompts.array:
+    sources:
+      - "Autodesk Help AutoCAD 2025 — To Copy Objects, Array option"
+      - "Autodesk Knowledge Network COPY 2021"
+    confidence: medium
+    note: Fit sub-option within Array is documented but less commonly used; prompt wording synthesized.
+  sysvars.COPYMODE:
+    sources:
+      - "https://ukcommunity.arkance.world/hc/en-us/articles/21550600821906-AutoCAD-Copymode-system-variable"
+      - "https://help.autodesk.com/cloudhelp/2019/ENU/AutoCAD-Core/files/GUID-BB3CED8E-4FA7-492A-8229-77A9021F67D7.htm"
+      - "Autodesk Forum: Copy Command is Single Copy and Not Multiple Copy"
+    confidence: high
+
+unverified:
+  - exact prompt wording "Specify base point or [Displacement/mOde] <Displacement>:" — may include "Multiple" instead of "mOde" in older versions
+  - whether Array Fit sub-option prompt says "Specify second point:" or includes additional options
+  - whether completed copies are preserved on Escape (assumed yes — copies already placed are committed)
+  - whether "mOde" option changes COPYMODE sysvar or only affects current invocation

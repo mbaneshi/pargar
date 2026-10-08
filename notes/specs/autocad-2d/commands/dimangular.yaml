@@ -1,0 +1,224 @@
+# AutoCAD DIMANGULAR — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: DIMANGULAR
+category: dimension
+aliases: [DAN]
+shortcut: DAN
+
+description: |
+  Creates an angular dimension. Can dimension the angle between two lines, the
+  angle of an arc, an angle defined by three points (vertex + two endpoints), or
+  the angle at a point on a circle. Uses the current DIMSTYLE. Displays the angle
+  in degrees by default.
+
+prompts:
+  - id: select_or_vertex
+    text: "Select arc, circle, line, or <specify vertex>:"
+    accepts:
+      - kind: pick
+        action: detect_entity_type_then_route
+        note: |
+          If an arc is picked → advance(dim_arc_line_location).
+          If a circle is picked → advance(second_angle_endpoint_circle).
+          If a line is picked → advance(select_second_line).
+          The arc center becomes the vertex; arc endpoints become angle endpoints.
+      - kind: enter
+        action: advance(specify_vertex)
+        note: pressing Enter enters three-point angular dimension mode
+      - kind: escape
+        action: cancel_command
+
+  - id: select_second_line
+    text: "Select second line:"
+    accepts:
+      - kind: pick
+        action: set_second_line_then_advance(dim_arc_line_location)
+        note: |
+          The angle is measured between the two selected lines. The dimension
+          placement determines which of the four possible angles is displayed.
+      - kind: escape
+        action: cancel_command
+
+  - id: second_angle_endpoint_circle
+    text: "Specify second angle endpoint:"
+    accepts:
+      - kind: pick
+        action: set_second_endpoint_then_advance(dim_arc_line_location)
+        note: |
+          The first angle endpoint is the pick point on the circle.
+          The center of the circle is the angle vertex.
+      - kind: escape
+        action: cancel_command
+
+  - id: specify_vertex
+    text: "Specify angle vertex:"
+    accepts:
+      - kind: pick
+        action: set_vertex_then_advance(first_angle_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: first_angle_endpoint
+    text: "Specify first angle endpoint:"
+    accepts:
+      - kind: pick
+        action: set_first_endpoint_then_advance(second_angle_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_angle_endpoint
+    text: "Specify second angle endpoint:"
+    accepts:
+      - kind: pick
+        action: set_second_endpoint_then_advance(dim_arc_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: dim_arc_line_location
+    text: "Specify dimension arc line location or [Mtext/Text/Angle/Quadrant]:"
+    accepts:
+      - kind: pick
+        action: place_dimension_then_end
+        note: |
+          The pick location determines which angle quadrant to dimension.
+          For two lines, four possible angles exist; cursor position selects one.
+      - kind: keyword
+        value: M
+        long: Mtext
+        action: open_mtext_editor_then_return(dim_arc_line_location)
+      - kind: keyword
+        value: T
+        long: Text
+        action: advance(text_override)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(text_angle)
+      - kind: keyword
+        value: Q
+        long: Quadrant
+        action: advance(quadrant_point)
+        note: |
+          Specifies which quadrant of the angle to display (for angles > 180).
+          Available in AutoCAD 2023+ (may not be present in older versions).
+      - kind: escape
+        action: cancel_command
+
+  - id: text_override
+    text: "Enter dimension text <{MEASURED_ANGLE}>:"
+    accepts:
+      - kind: number
+        action: set_text_override_then_return(dim_arc_line_location)
+      - kind: enter
+        action: use_measured_value_then_return(dim_arc_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_angle
+    text: "Specify angle of dimension text:"
+    accepts:
+      - kind: number
+        action: set_text_angle_then_return(dim_arc_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: quadrant_point
+    text: "Specify quadrant angle:"
+    accepts:
+      - kind: pick
+        action: set_quadrant_then_return(dim_arc_line_location)
+      - kind: number
+        action: set_quadrant_then_return(dim_arc_line_location)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - DIMSTYLE       # current dimension style name
+  - DIMSCALE       # overall dimension scale factor
+  - DIMTXT         # dimension text height
+  - DIMASZ         # arrowhead size
+  - DIMDEC         # decimal places for angular units — actually DIMADEC
+  - DIMADEC        # angular dimension decimal places (-1 = use DIMDEC)
+  - DIMAUNIT       # angular dimension unit format (0=degrees, 1=deg/min/sec, etc.)
+  - DIMTAD         # text placement above/below dimension line
+  - DIMGAP         # gap between dimension arc and text
+
+sysvars_written: []
+
+sysvar_definitions:
+  DIMADEC:
+    type: integer
+    default: 0
+    persistence: drawing
+    notes: |
+      Number of decimal places for angular dimension text.
+      -1 = use the DIMDEC setting. 0-8 = explicit decimal places.
+  DIMAUNIT:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: Decimal degrees
+      1: Degrees/minutes/seconds
+      2: Gradians
+      3: Radians
+
+repeats_with_space: false
+repeats_with_enter: false
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_no_entity_created
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — DAN"
+    confidence: high
+  prompts.select_or_vertex:
+    sources:
+      - "Autodesk Help GUID-6AB63ECB (AutoCAD 2019-2022)"
+      - "CAD Forum DIMANGULAR page"
+      - "GstarCAD DIMANGULAR docs"
+    confidence: high
+  prompts.dim_arc_line_location:
+    sources:
+      - "Autodesk Help GUID-6AB63ECB — confirms [Mtext/Text/Angle/Quadrant]"
+      - "CAD Forum — options: Mtext, Text, Angle, Quadrant"
+    confidence: high
+  prompts.select_second_line:
+    sources:
+      - "Autodesk Help GUID-6AB63ECB"
+      - "Autodesk Community scripting thread"
+    confidence: high
+  sysvars:
+    sources:
+      - "Scribd DimVar document"
+      - "Autodesk Help dimension system variables"
+    confidence: medium
+
+unverified:
+  - whether Quadrant option is available in all AutoCAD versions or only 2023+
+  - exact prompt for quadrant — 'Specify quadrant angle' vs 'Specify a point in the angle quadrant'
+  - whether circle selection uses the pick point as first angle endpoint (some sources imply this)
+  - behavior when two lines are parallel (should error or show 180/0)
+  - whether DIMANGULAR repeats with Space/Enter

@@ -1,0 +1,226 @@
+# AutoCAD SCALE — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: SCALE
+category: modify
+aliases: [SC]
+shortcut: SC
+
+description: |
+  Enlarges or reduces selected objects, keeping the proportions of the object
+  the same after scaling. A scale factor greater than 1 enlarges; between 0 and
+  1 shrinks. Supports Copy and Reference sub-options.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        condition: selection_set_non_empty
+        action: advance(base_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: base_point
+    text: "Specify base point:"
+    accepts:
+      - kind: pick
+        action: set_base_point_then_advance(scale_factor)
+      - kind: escape
+        action: cancel_command
+
+  - id: scale_factor
+    text: "Specify scale factor or [Copy/Reference] <1.0000>:"
+    accepts:
+      - kind: number
+        action: emit_scale_then_end
+      - kind: keyword
+        value: C
+        long: Copy
+        action: set_copy_mode_then_advance(scale_factor_copy)
+      - kind: keyword
+        value: R
+        long: Reference
+        action: advance(reference_length)
+      - kind: enter
+        action: use_default_factor_then_emit_scale
+      - kind: escape
+        action: cancel_command
+
+  - id: scale_factor_copy
+    text: "Specify scale factor or [Copy/Reference] <1.0000>:"
+    accepts:
+      - kind: number
+        action: emit_scale_copy_then_end
+      - kind: keyword
+        value: R
+        long: Reference
+        action: advance(reference_length_copy)
+      - kind: enter
+        action: use_default_factor_then_emit_scale_copy
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_length
+    text: "Specify reference length <1>:"
+    accepts:
+      - kind: number
+        action: set_ref_length_then_advance(new_length)
+      - kind: pick
+        action: set_ref_length_first_point_then_advance(reference_length_second_point)
+      - kind: enter
+        action: use_default_ref_length_then_advance(new_length)
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_length_second_point
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_ref_length_then_advance(new_length)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length
+    text: "Specify new length or [Points] <1>:"
+    accepts:
+      - kind: number
+        action: emit_scale_ref_then_end
+      - kind: pick
+        action: compute_new_length_then_emit_scale_ref
+      - kind: keyword
+        value: P
+        long: Points
+        action: advance(new_length_points)
+      - kind: enter
+        action: use_default_new_length_then_emit_scale_ref
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length_points
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: set_new_length_first_then_advance(new_length_second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length_second_point
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_new_length_from_points_then_emit_scale_ref
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_length_copy
+    text: "Specify reference length <1>:"
+    accepts:
+      - kind: number
+        action: set_ref_length_then_advance(new_length_copy)
+      - kind: pick
+        action: set_ref_length_first_point_then_advance(reference_length_second_point_copy)
+      - kind: enter
+        action: use_default_ref_length_then_advance(new_length_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: reference_length_second_point_copy
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_ref_length_then_advance(new_length_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length_copy
+    text: "Specify new length or [Points] <1>:"
+    accepts:
+      - kind: number
+        action: emit_scale_ref_copy_then_end
+      - kind: pick
+        action: compute_new_length_then_emit_scale_ref_copy
+      - kind: keyword
+        value: P
+        long: Points
+        action: advance(new_length_points_copy)
+      - kind: enter
+        action: use_default_new_length_then_emit_scale_ref_copy
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length_points_copy
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: set_new_length_first_then_advance(new_length_second_point_copy)
+      - kind: escape
+        action: cancel_command
+
+  - id: new_length_second_point_copy
+    text: "Specify second point:"
+    accepts:
+      - kind: pick
+        action: compute_new_length_from_points_then_emit_scale_ref_copy
+      - kind: escape
+        action: cancel_command
+
+sysvars_read: []
+sysvars_written: []
+
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "https://www.canadacad.ca/what-is-the-shortcut-key-of-scale-command-in-autocad/"
+      - "Multiple community alias lists confirm SC as the SCALE alias"
+    confidence: high
+  prompts.scale_factor:
+    sources:
+      - "AutoCAD 2024 Help SCALE command reference (GUID-D4E17E51)"
+      - "https://sourcecad.com/scale-in-autocad/"
+      - "https://cadmastercoach.com/commands/modify/scale"
+    confidence: high
+  prompts.reference:
+    sources:
+      - "https://sourcecad.com/rotate-scale-reference-autocad/"
+      - "https://www.nobledesktop.com/learn/autocad/the-reference-option-part-1-the-scale-tool"
+    confidence: high
+  prompts.copy_option:
+    sources:
+      - "https://sourcecad.com/scale-in-autocad/"
+    confidence: high
+
+unverified:
+  - exact wording of "Specify scale factor or [Copy/Reference] <1.0000>:" — default display value may vary
+  - whether the Reference sub-option shows "Specify reference length" or "Specify the reference length" (with/without "the")
+  - whether new length prompt includes [Points] sub-option — confirmed for recent versions, not verified for older
+  - exact default scale factor displayed (may show 1.0000 or last-used factor)

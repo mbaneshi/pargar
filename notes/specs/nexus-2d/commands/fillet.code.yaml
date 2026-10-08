@@ -1,0 +1,129 @@
+# NEXUS FILLET — implementation as written in code
+# Static audit 2026-04-17 from:
+#   packages/app/src/lib/commands/registerBuiltinCommands.ts:553-575
+#   packages/app/src/lib/shell/tools/FilletHandler.ts
+#   packages/kernel/src/geometry_ops.rs:1105
+#   packages/kernel/src/lib.rs:836
+
+command: modify_fillet
+aliases: [f, fillet]
+label: Fillet
+
+mcp_schema:
+  required: [id_a, id_b, radius]
+  properties:
+    id_a:   { type: string }
+    id_b:   { type: string }
+    radius: { type: number }
+
+prompts:
+  - id: first_object
+    state: 0
+    text: "FILLET R={radius}, select first entity [Radius]:"
+    accepts:
+      - kind: pick
+        action: store_first_then_advance(second_object)
+      - kind: number (via onCommandInput)
+        action: set_radius (stays in state 0)
+    rejects: [Polyline, Trim, Multiple, Undo keywords]
+    available_commands: [Radius]  # via getAvailableCommands → autocomplete hint
+
+  - id: second_object
+    state: 1
+    text: "FILLET Select second entity:"
+    accepts: [pick]
+    rejects: [shift-pick for R=0, Radius re-input mid-pair]
+    after_emit: setStatus(0)  # implicit Multiple-mode-always: returns to first-object
+
+implicit_multiple_mode:
+  status: ALWAYS_ON
+  notes: |
+    After each fillet pair, the handler resets to status 0 — equivalent to
+    AutoCAD's Multiple mode being permanently on. This actually matches power-user
+    workflow but doesn't follow the AutoCAD contract (no explicit Multiple keyword,
+    no way to do single-fillet-then-exit).
+
+radius_input:
+  current: |
+    Bare number at status 0 sets radius. There is no separate "Specify fillet
+    radius:" prompt — the user just types a number whenever the first-object
+    prompt is shown.
+  autocad: |
+    `R Enter` → "Specify fillet radius <FILLETRAD>:" → number Enter → returns
+    to first-object prompt. Number-typing without `R` first should NOT change
+    the radius in AutoCAD.
+
+sysvars:
+  FILLETRAD: NOT_DEFINED  # radius reset to 0 on every activate()
+  TRIMMODE:  NOT_DEFINED  # no Trim/No-trim option exists
+
+distance_recall:
+  status: ABSENT
+  evidence: "FilletHandler.ts:11 — `this.radius = 0` on activate()"
+
+options:
+  Polyline: NOT_IMPLEMENTED  # cannot fillet all corners of a polyline at once
+  Radius:   PARTIAL          # number input works but no proper sub-prompt
+  Trim:     NOT_IMPLEMENTED  # no Trim/No-trim toggle
+  Multiple: IMPLICIT_ALWAYS  # see above
+  Undo:     NOT_IMPLEMENTED  # within-command undo
+
+R0_corner_cleanup:
+  status: WORKS_ACCIDENTALLY
+  evidence: |
+    radius defaults to 0; if user picks two entities without typing a number,
+    the kernel computes a fillet with radius 0, which the kernel handles
+    correctly (e2e/edge-cases.spec.ts:fillet-r0-corner-cleanup passes).
+  caveat: |
+    User cannot reach this through the AutoCAD muscle memory `F R 0 Enter` —
+    they happen to land in it because radius starts at 0. Different mental model.
+
+shift_to_apply_corner:
+  status: ABSENT
+  notes: No shift-modifier handling in onCoordinateInput. Power user's "shift to force R=0 for this pair" pattern doesn't exist.
+
+cancel_semantics:
+  esc_once:
+    code: "FilletHandler.onKeyDown — setStatus(0); firstId=''; HANDLED"
+    effect: Resets to first-object selection (same divergence as OFFSET/TRIM).
+
+kernel_fillet_signature:
+  rust: "fillet(id_a: &str, id_b: &str, radius: f64) -> CommandResult"
+  geometry_support:
+    line + line:    yes
+    line + arc:     NO  ("Fillet requires lines" error at geometry_ops.rs:1133)
+    arc + arc:      NO
+    line + circle:  NO
+    polyline whole: NO  (no Polyline option entry point)
+
+audit_findings:
+  - finding: "Lines-only fillet — AutoCAD fillets every 2D entity-pair combination"
+    severity: critical
+    category: kernel_capability
+  - finding: "No Polyline option — cannot fillet all corners of a closed polyline at once"
+    severity: critical
+    category: command_grammar
+  - finding: "No FILLETRAD persistence — radius resets to 0 each invocation"
+    severity: critical
+    category: state_persistence
+  - finding: "Radius input has no sub-prompt — number-during-pick state is ambiguous"
+    severity: medium
+    category: prompt_grammar
+  - finding: "No Trim/No-trim mode — no TRIMMODE sysvar"
+    severity: high
+    category: command_grammar
+  - finding: "No within-command Undo"
+    severity: medium
+    category: command_grammar
+  - finding: "Implicit always-Multiple mode — cannot do single-fillet-then-exit per AutoCAD default"
+    severity: low
+    category: command_grammar
+    note: |
+      The behavior is friendlier than AutoCAD default but breaks the contract.
+      Power users may expect single-pair-then-exit unless they typed M first.
+  - finding: "Esc inside FILLET resets state instead of exiting"
+    severity: high
+    category: cancel_semantics
+  - finding: "No shift-modifier on second-pick to force R=0"
+    severity: medium
+    category: power_user_pattern

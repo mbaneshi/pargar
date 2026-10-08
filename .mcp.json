@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nexus-cad": {
+      "command": "node",
+      "args": ["packages/mcp/dist/index.js"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}

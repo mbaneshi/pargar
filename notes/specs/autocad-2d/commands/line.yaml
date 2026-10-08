@@ -1,0 +1,168 @@
+# AutoCAD LINE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: LINE
+category: draw
+aliases: [L]
+shortcut: L
+
+description: |
+  Creates a series of contiguous straight line segments. Each segment is a
+  separate line entity. Pressing Enter/Space after the first point starts a
+  chain; Undo removes the last segment; Close connects back to the first point.
+
+prompts:
+  - id: first_point
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: store_first_point_then_advance(next_point_initial)
+      - kind: number
+        note: coordinate input (absolute, relative, polar)
+        action: store_first_point_then_advance(next_point_initial)
+      - kind: enter
+        condition: LASTPOINT exists and a previous LINE/ARC ended recently
+        action: continue_from_LASTPOINT_then_advance(next_point_initial)
+      - kind: escape
+        action: cancel_command
+
+  - id: next_point_initial
+    text: "Specify next point or [Undo]:"
+    note: After only one segment, Close is not yet offered.
+    accepts:
+      - kind: pick
+        action: create_line_segment_then_advance(next_point_chain)
+      - kind: number
+        action: create_line_segment_then_advance(next_point_chain)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment_then_revert(first_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: next_point_chain
+    text: "Specify next point or [Close/Undo]:"
+    note: Appears after 2+ segments exist. Close option becomes available.
+    accepts:
+      - kind: pick
+        action: create_line_segment_then_loop(next_point_chain)
+      - kind: number
+        action: create_line_segment_then_loop(next_point_chain)
+      - kind: keyword
+        value: C
+        long: Close
+        action: create_closing_segment_then_end_command
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+        note: If all segments undone, reverts to next_point_initial or first_point
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+chain_behavior:
+  description: |
+    LINE operates in a chain loop. Each pick adds a segment from the previous
+    endpoint to the new point. Undo removes the most recent segment and backs
+    up the current point. Close draws a segment from the current point to the
+    very first point, then ends the command. Enter/Space at any next-point
+    prompt ends the command (all drawn segments remain).
+  close_requires_min_segments: 2
+
+continue_from_last:
+  description: |
+    If you press Enter at the "Specify first point:" prompt (no point given),
+    AutoCAD continues from the endpoint of the most recently drawn line or arc.
+    This uses the LASTPOINT system variable.
+
+sysvars_read:
+  - LASTPOINT      # used when Enter is pressed at first point prompt
+  - ORTHOMODE      # constrains to orthogonal if on
+  - OSMODE         # object snap modes
+  - POLARANG       # polar tracking angle
+  - DYNMODE        # dynamic input mode
+
+sysvars_written:
+  - LASTPOINT      # updated to last point specified
+
+sysvar_definitions:
+  LASTPOINT:
+    type: point3d
+    default: "0.0000,0.0000,0.0000"
+    persistence: drawing
+    notes: |
+      Stores the last point entered, expressed as UCS coordinates for the
+      current space. Referenced by @ symbol and by LINE's Enter-at-first-point
+      continuation behavior.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command_discard_uncommitted_segment
+  esc_twice: cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Multiple AutoCAD command alias references confirm L = LINE"
+      - "https://xlncad.com/autocad-command-alias/"
+    confidence: high
+  prompts.first_point:
+    sources:
+      - "Autodesk help: 'To Draw Lines' (AutoCAD 2022)"
+      - "CADTutor drawing objects tutorial"
+      - "Peachpit AutoCAD Quick Start Tutorial"
+    confidence: high
+  prompts.next_point_initial:
+    sources:
+      - "CADTutor tutorial confirms [Undo] only after first segment"
+      - "WonderCAD LINE command reference"
+      - "Noble Desktop LINE command tutorial"
+    confidence: high
+  prompts.next_point_chain:
+    sources:
+      - "Multiple tutorials confirm [Close/Undo] appears after 2+ segments"
+      - "Autodesk help: 'To Draw Lines'"
+    confidence: high
+  chain_behavior:
+    sources:
+      - "Noble Desktop: Undo removes last segment, Close connects back to first point"
+      - "WonderCAD: Close option creates line from current to starting point"
+    confidence: high
+  continue_from_last:
+    sources:
+      - "Autodesk forum: LASTPOINT and @ reference"
+      - "AutoCAD documentation: pressing Enter at first point continues from last line/arc"
+    confidence: medium
+    note: |
+      The exact condition for continuation (last entity must be line or arc)
+      is documented but nuances around timing may vary.
+
+unverified:
+  - exact prompt text "Specify next point or [Undo]:" vs "Specify next point or [Close/Undo]:" transition point — most sources show Close appears after 2 segments, but the exact segment count threshold should be verified
+  - whether continuation from LASTPOINT works after any entity or only LINE/ARC
+  - whether pressing Enter at first_point with no prior LINE/ARC does nothing or cancels

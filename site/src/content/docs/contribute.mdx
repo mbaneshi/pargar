@@ -1,0 +1,51 @@
+---
+title: Contribute
+description: How to help, from a ten-minute bug report to kernel work.
+---
+
+import { CardGrid, Card, LinkButton } from "@astrojs/starlight/components";
+
+Pargar is built in the open. Code, bug reports, AutoCAD-parity findings, translations and docs are all welcome.
+
+<CardGrid>
+  <Card title="Try it and report" icon="warning">
+    Have a browser and ten minutes? Use [cad.houshkar.ir](https://cad.houshkar.ir) and report what breaks: steps, expected vs. actual, browser.
+    [Open an issue →](https://github.com/mbaneshi/pargar/issues/new)
+  </Card>
+  <Card title="Know AutoCAD?" icon="pencil">
+    Compare a command against AutoCAD and file a parity gap. Specs live in `notes/specs/autocad-2d/`.
+  </Card>
+  <Card title="Write Rust" icon="seti:rust">
+    Kernel work in `packages/kernel`: geometry, commands, DXF.
+  </Card>
+  <Card title="Write TypeScript / Svelte" icon="seti:svelte">
+    UI, renderer and file I/O in `packages/app`, `packages/renderer`, `packages/file-io`.
+  </Card>
+  <Card title="Translate" icon="translate">
+    This site is English and Persian; the app UI needs translating too. Write for a native reader, not word for word.
+  </Card>
+  <Card title="Start small" icon="star">
+    Look for [good first issues](https://github.com/mbaneshi/pargar/labels/good%20first%20issue) and [help wanted](https://github.com/mbaneshi/pargar/labels/help%20wanted).
+  </Card>
+</CardGrid>
+
+## Pull requests
+
+1. Open or find an issue first, and agree on the approach for anything non-trivial.
+2. Branch from **`dev`** (the default branch). `main` only moves on releases.
+3. Keep PRs focused, link the issue (`Closes #N`), and get CI green.
+4. Every operation is a command: if a human can do it in the UI, an agent must be able to do it through the same command.
+5. Never commit a secret. `VITE_*` values are public by design.
+6. CI runs on GitHub-hosted runners only.
+
+Read the [seven rules](/pargar/architecture/) first; every review holds changes to them.
+
+## Security
+
+Found a vulnerability? **Don't open a public issue.** Report it privately as described in [`SECURITY.md`](https://github.com/mbaneshi/pargar/blob/dev/SECURITY.md).
+
+## Licensing
+
+Contributions are licensed under Apache-2.0 for code and CC BY 4.0 for documentation and translations. Everyone follows the [Code of Conduct](https://github.com/mbaneshi/pargar/blob/dev/CODE_OF_CONDUCT.md).
+
+<LinkButton href="https://github.com/mbaneshi/pargar/blob/dev/CONTRIBUTING.md" icon="external">Read CONTRIBUTING.md</LinkButton>

@@ -1,0 +1,103 @@
+# NEXUS TRIM — implementation as written in code
+# Static audit 2026-04-17 from:
+#   packages/app/src/lib/commands/registerBuiltinCommands.ts:506-531
+#   packages/app/src/lib/shell/tools/TrimHandler.ts
+#   packages/kernel/src/geometry_ops.rs:359
+#   packages/kernel/src/lib.rs:570
+
+command: modify_trim
+aliases: [tr, trim]
+label: Trim
+
+mcp_schema:
+  required: [id, boundary_id, pick_x, pick_y]
+  properties:
+    id:          { type: string, description: Entity ID to trim }
+    boundary_id: { type: string, description: Cutting boundary entity ID }
+    pick_x:      { type: number, description: Pick point X }
+    pick_y:      { type: number, description: Pick point Y }
+
+prompts:
+  - id: select_cutting_edge
+    state: 0
+    text: "TRIM Select cutting edge:"
+    accepts: [pick (single)]
+    rejects: [multi-pick, Enter to select-all, keyword options]
+
+  - id: select_object_to_trim
+    state: 1
+    text: "TRIM Select entity to trim:"
+    accepts: [pick]
+    rejects: [shift-pick to extend, Fence, Crossing, Project, Edge, eRase, Undo, Enter to exit]
+    loops_to: select_object_to_trim  # implicit — status stays at 1 after each pick
+
+mode:
+  status: STANDARD_ONLY
+  notes: No Quick mode. Always requires explicit cutting-edge selection.
+
+cutting_edges_count: ONE_ONLY
+  notes: |
+    `boundaryId: string` — single cutting edge. AutoCAD allows N cutting edges
+    plus an "all" option (Enter at the cutting-edge prompt selects everything).
+
+shift_to_extend:
+  status: ABSENT
+  notes: No shift-pick handling in onCoordinateInput. EXTEND is a separate command.
+
+options:
+  Fence:    NOT_IMPLEMENTED
+  Crossing: NOT_IMPLEMENTED
+  Project:  NOT_IMPLEMENTED
+  Edge:     NOT_IMPLEMENTED
+  eRase:    NOT_IMPLEMENTED
+  Undo:     NOT_IMPLEMENTED
+  mOde:     NOT_IMPLEMENTED  # because no Quick mode either
+
+sysvars:
+  TRIMEXTENDMODE: NOT_DEFINED
+  EDGEMODE:       NOT_DEFINED
+  PROJMODE:       NOT_DEFINED
+
+cancel_semantics:
+  esc_once:
+    code: "TrimHandler.onKeyDown — setStatus(0); boundaryId=''; return HANDLED"
+    effect: |
+      Resets to cutting-edge selection WITHIN TRIM. Does NOT exit the tool.
+      Same divergence as OFFSET — single Esc should exit per AutoCAD semantics.
+
+modeless_during_command:
+  fkeys: { F3: registered_globally, F8: registered_globally, F9: registered_globally }
+  transparent_commands: { zoom_extents: yes, zoom_in: yes, zoom_out: yes, pan: NOT_REGISTERED }
+  right_click: BaseToolHandler steps back / cancels — no context menu
+
+kernel_trim_signature:
+  rust: "trim_entity(entities, …, id: &str, boundary_id: &str, pick_x: f64, pick_y: f64) -> bool"
+  notes: |
+    Single-cutter, single-target signature. No edge-extension mode parameter,
+    no projection-mode parameter, no fence/crossing batch.
+
+audit_findings:
+  - finding: "Single cutting edge only — AutoCAD allows multiple plus implicit 'all'"
+    severity: critical
+    category: command_grammar
+  - finding: "No Quick mode — modern AutoCAD users default to clicking-without-cutting-edge-select"
+    severity: critical
+    category: command_grammar
+  - finding: "No shift-to-extend — TRIM and EXTEND must be a single bidirectional gesture"
+    severity: critical
+    category: power_user_pattern
+  - finding: "No Fence / Crossing batch trim — has to click each entity individually"
+    severity: high
+    category: command_grammar
+  - finding: "No Project / Edge mode — assumes UCS XY, no implied-edge extension"
+    severity: medium
+    category: command_grammar
+  - finding: "No within-command Undo"
+    severity: medium
+    category: command_grammar
+  - finding: "Esc inside TRIM resets to cutting-edge prompt instead of exiting"
+    severity: high
+    category: cancel_semantics
+  - finding: "MCP schema is single-cutter / single-target; an AI agent has no way to do batch trim"
+    severity: high
+    category: ai_surface_parity

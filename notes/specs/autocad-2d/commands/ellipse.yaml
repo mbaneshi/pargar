@@ -1,0 +1,361 @@
+# AutoCAD ELLIPSE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: ELLIPSE
+category: draw
+aliases: [EL]
+shortcut: EL
+
+description: |
+  Creates an ellipse or an elliptical arc. The default method defines the
+  ellipse by specifying two endpoints of one axis and the distance to the
+  other axis. The Center option defines the ellipse from its center point.
+  The Arc option creates an elliptical arc. When PELLIPSE=1, creates a
+  polyline approximation instead of a true ellipse.
+
+prompts:
+  # === Default: Axis Endpoint method ===
+  - id: axis_endpoint_1
+    text: "Specify axis endpoint of ellipse or [Arc/Center]:"
+    accepts:
+      - kind: pick
+        action: store_axis1_start_then_advance(axis_endpoint_2)
+      - kind: number
+        action: store_axis1_start_then_advance(axis_endpoint_2)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(arc_axis_endpoint_1)
+      - kind: keyword
+        value: C
+        long: Center
+        action: advance(center_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: axis_endpoint_2
+    text: "Specify other endpoint of axis:"
+    accepts:
+      - kind: pick
+        action: store_axis1_end_then_advance(other_axis_distance)
+      - kind: number
+        action: store_axis1_end_then_advance(other_axis_distance)
+      - kind: escape
+        action: cancel_command
+
+  - id: other_axis_distance
+    text: "Specify distance to other axis or [Rotation]:"
+    accepts:
+      - kind: pick
+        action: create_ellipse_then_end
+      - kind: number
+        action: create_ellipse_then_end
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotation_angle
+    text: "Specify rotation around major axis:"
+    note: |
+      Valid range is 0 to 89.4 degrees. A rotation of 0 defines a circle.
+      As the angle increases, the ellipse becomes more elongated (minor axis
+      shrinks relative to major axis).
+    accepts:
+      - kind: number
+        action: create_ellipse_by_rotation_then_end
+      - kind: pick
+        action: create_ellipse_by_rotation_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Center method ===
+  - id: center_point
+    text: "Specify center of ellipse:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(center_axis_endpoint)
+      - kind: number
+        action: store_center_then_advance(center_axis_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_axis_endpoint
+    text: "Specify endpoint of axis:"
+    accepts:
+      - kind: pick
+        action: store_axis_endpoint_then_advance(center_other_axis)
+      - kind: number
+        action: store_axis_endpoint_then_advance(center_other_axis)
+      - kind: escape
+        action: cancel_command
+
+  - id: center_other_axis
+    text: "Specify distance to other axis or [Rotation]:"
+    accepts:
+      - kind: pick
+        action: create_ellipse_then_end
+      - kind: number
+        action: create_ellipse_then_end
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+  # === Elliptical Arc mode ===
+  - id: arc_axis_endpoint_1
+    text: "Specify axis endpoint of elliptical arc or [Center]:"
+    accepts:
+      - kind: pick
+        action: store_axis1_start_then_advance(arc_axis_endpoint_2)
+      - kind: number
+        action: store_axis1_start_then_advance(arc_axis_endpoint_2)
+      - kind: keyword
+        value: C
+        long: Center
+        action: advance(arc_center_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_axis_endpoint_2
+    text: "Specify other endpoint of axis:"
+    accepts:
+      - kind: pick
+        action: store_axis1_end_then_advance(arc_other_axis)
+      - kind: number
+        action: store_axis1_end_then_advance(arc_other_axis)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_other_axis
+    text: "Specify distance to other axis or [Rotation]:"
+    accepts:
+      - kind: pick
+        action: store_other_axis_then_advance(arc_start_angle)
+      - kind: number
+        action: store_other_axis_then_advance(arc_start_angle)
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(arc_rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_rotation_angle
+    text: "Specify rotation around major axis:"
+    accepts:
+      - kind: number
+        action: store_rotation_then_advance(arc_start_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_start_angle
+    text: "Specify start angle or [Parameter]:"
+    note: |
+      Angle 0 is at the first axis endpoint. Angles increase counterclockwise.
+      Parameter option uses parametric vector equation instead of angle.
+    accepts:
+      - kind: number
+        action: store_start_angle_then_advance(arc_end_angle)
+      - kind: pick
+        action: store_start_angle_then_advance(arc_end_angle)
+      - kind: keyword
+        value: P
+        long: Parameter
+        action: advance(arc_start_parameter)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_end_angle
+    text: "Specify end angle or [Parameter/Included angle]:"
+    accepts:
+      - kind: number
+        action: create_elliptical_arc_then_end
+      - kind: pick
+        action: create_elliptical_arc_then_end
+      - kind: keyword
+        value: P
+        long: Parameter
+        action: advance(arc_end_parameter)
+      - kind: keyword
+        value: I
+        long: Included angle
+        action: advance(arc_included_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_included_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_elliptical_arc_by_included_then_end
+      - kind: pick
+        action: create_elliptical_arc_by_included_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_start_parameter
+    text: "Specify start parameter or [Angle]:"
+    accepts:
+      - kind: number
+        action: store_start_param_then_advance(arc_end_parameter)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(arc_start_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_end_parameter
+    text: "Specify end parameter or [Angle/Included angle]:"
+    accepts:
+      - kind: number
+        action: create_elliptical_arc_by_param_then_end
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(arc_end_angle)
+      - kind: keyword
+        value: I
+        long: Included angle
+        action: advance(arc_included_angle)
+      - kind: escape
+        action: cancel_command
+
+  # === Elliptical Arc Center mode ===
+  - id: arc_center_point
+    text: "Specify center of elliptical arc:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(arc_center_axis_endpoint)
+      - kind: number
+        action: store_center_then_advance(arc_center_axis_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center_axis_endpoint
+    text: "Specify endpoint of axis:"
+    accepts:
+      - kind: pick
+        action: store_axis_endpoint_then_advance(arc_center_other_axis)
+      - kind: number
+        action: store_axis_endpoint_then_advance(arc_center_other_axis)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center_other_axis
+    text: "Specify distance to other axis or [Rotation]:"
+    accepts:
+      - kind: pick
+        action: store_other_axis_then_advance(arc_start_angle)
+      - kind: number
+        action: store_other_axis_then_advance(arc_start_angle)
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(arc_rotation_angle)
+      - kind: escape
+        action: cancel_command
+
+isocircle:
+  description: |
+    When ISODRAFT is active (isometric snap mode), the initial prompt changes
+    to "Specify axis endpoint of ellipse or [Arc/Center/Isocircle]:" and the
+    Isocircle option becomes available. This draws an isometric circle
+    representation on the current isoplane.
+  prompt: "Specify center of isocircle:"
+  then: "Specify radius of isocircle or [Diameter]:"
+
+sysvars_read:
+  - PELLIPSE       # 0 = true ellipse, 1 = polyline approximation
+  - OSMODE
+  - ORTHOMODE
+
+sysvars_written:
+  - LASTPOINT
+
+sysvar_definitions:
+  PELLIPSE:
+    type: integer
+    default: 0
+    valid_values:
+      0: Creates true ellipse entities (default)
+      1: Creates polyline approximations of ellipses
+    persistence: registry
+    notes: |
+      When PELLIPSE=1, the ELLIPSE command creates a closed polyline that
+      approximates an ellipse. This is a legacy mode for compatibility with
+      applications that cannot handle true ellipse entities.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command
+  esc_twice: cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: EL = ELLIPSE"
+    confidence: high
+  prompts.axis_endpoint_1:
+    sources:
+      - "Autodesk ELLIPSE Command reference (2021, 2022, 2023, 2024)"
+      - "Noble Desktop Ellipse & Polygon Tools tutorial"
+    confidence: high
+    note: |
+      "Specify axis endpoint of ellipse or [Arc/Center]:" confirmed across
+      multiple Autodesk help versions. Isocircle option only appears in
+      isometric snap mode.
+  prompts.other_axis_distance:
+    sources:
+      - "Autodesk ELLIPSE Command reference: 'Specify distance to other axis or [Rotation]:'"
+    confidence: high
+  prompts.rotation_angle:
+    sources:
+      - "Autodesk ELLIPSE Command reference"
+      - "GStarCAD ELLIPSE docs: range 0 to 89.4 degrees"
+    confidence: high
+  prompts.arc_mode:
+    sources:
+      - "Autodesk ELLIPSE Command reference: elliptical arc sub-options"
+      - "autocad123.blogspot.com Ellipse Arc Command tutorial"
+    confidence: medium
+    note: |
+      Arc mode prompts derived from Autodesk docs. Exact wording for
+      Parameter/Included angle options should be verified in live AutoCAD.
+  sysvars.PELLIPSE:
+    sources:
+      - "Autodesk forum: isocircle option and PELLIPSE discussion"
+      - "Autodesk ELLIPSE Command reference"
+    confidence: high
+
+unverified:
+  - exact prompt for elliptical arc start/end angles — "Specify start angle or [Parameter]:" may have additional options
+  - exact prompt for Parameter mode — "Specify start parameter or [Angle]:" needs verification
+  - whether Isocircle option appears only with ISODRAFT or also with SNAP style = Isometric
+  - rotation angle upper limit — "89.4" is documented but the exact cap may differ by version
+  - whether the first axis in axis endpoint mode can be either major or minor (docs say yes, but behavior with Rotation option may constrain this)

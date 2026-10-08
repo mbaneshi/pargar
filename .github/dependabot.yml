@@ -1,0 +1,62 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
+    # Groups batch related bumps into one PR so the queue doesn't fan out.
+    # Add a new group here when a vendor publishes ≥3 packages we depend on.
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      svelte:
+        patterns: ["svelte*", "@sveltejs/*"]
+      three:
+        patterns: ["three", "@types/three"]
+      sentry:
+        patterns: ["@sentry/*"]
+    # Suppress patch-level version updates across the board to cut noise.
+    # Security advisories file separately and are NOT affected by this block —
+    # they continue to surface immediately for any vulnerable dependency.
+    # See: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file#ignore
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  - package-ecosystem: "cargo"
+    directory: "/packages/kernel"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      wasm-bindgen-stack:
+        patterns:
+          - "wasm-bindgen*"
+          - "js-sys"
+          - "web-sys"
+          - "console_error_panic_hook"
+          - "serde-wasm-bindgen"
+          - "tsify*"
+      serde:
+        patterns:
+          - "serde"
+          - "serde_*"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    # Action bumps are usually safe and few; one group keeps the PR count low.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]

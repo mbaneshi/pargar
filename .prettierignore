@@ -1,0 +1,10 @@
+node_modules
+dist
+pkg
+build
+.svelte-kit
+test-results
+playwright-report
+packages/kernel/target
+*.wasm
+pnpm-lock.yaml

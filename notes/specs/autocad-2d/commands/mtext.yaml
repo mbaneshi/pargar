@@ -1,0 +1,320 @@
+# AutoCAD MTEXT — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+# Note: GUI MTEXT opens an in-place editor with ribbon. -MTEXT is the command-line
+# version. Both are documented here; prompts section covers -MTEXT flow.
+
+command: MTEXT
+category: annotate
+aliases: [T, MT]
+shortcut: T
+
+description: |
+  Creates a multiline text (MText) object. The GUI version opens an in-place
+  rich text editor with a formatting ribbon/toolbar after specifying the text
+  boundary rectangle. The command-line version (-MTEXT) prompts for first corner,
+  opposite corner (with options), then accepts typed text ending with a blank line.
+
+prompts:
+  # -MTEXT (command-line version) prompts
+  - id: first_corner
+    text: "Specify first corner:"
+    notes: "Current text style and height shown as status line before this prompt"
+    accepts:
+      - kind: pick
+        action: set_first_corner_then_advance(opposite_corner_or_option)
+      - kind: number
+        action: set_first_corner_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: opposite_corner_or_option
+    text: "Specify opposite corner or [Height/Justify/Line spacing/Rotation/Style/Width/Columns]:"
+    accepts:
+      - kind: pick
+        action: set_boundary_then_advance(enter_text)
+      - kind: number
+        action: set_boundary_then_advance(enter_text)
+      - kind: keyword
+        value: H
+        long: Height
+        action: advance(set_height)
+      - kind: keyword
+        value: J
+        long: Justify
+        action: advance(set_justify)
+      - kind: keyword
+        value: L
+        long: "Line spacing"
+        action: advance(set_line_spacing)
+      - kind: keyword
+        value: R
+        long: Rotation
+        action: advance(set_rotation)
+      - kind: keyword
+        value: S
+        long: Style
+        action: advance(set_style)
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(set_width)
+      - kind: keyword
+        value: C
+        long: Columns
+        action: advance(set_columns)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_height
+    text: "Specify height <{TEXTSIZE}>:"
+    accepts:
+      - kind: number
+        action: set_height_then_advance(opposite_corner_or_option)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_justify
+    text: "Enter justification [TL/TC/TR/ML/MC/MR/BL/BC/BR] <TL>:"
+    accepts:
+      - kind: keyword
+        value: TL
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: TC
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: TR
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: ML
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: MC
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: MR
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: BL
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: BC
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: keyword
+        value: BR
+        action: set_justify_then_advance(opposite_corner_or_option)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_line_spacing
+    text: "Enter line spacing type [At least/Exactly] <At least>:"
+    accepts:
+      - kind: keyword
+        value: A
+        long: "At least"
+        action: advance(line_spacing_factor)
+      - kind: keyword
+        value: E
+        long: Exactly
+        action: advance(line_spacing_factor)
+      - kind: enter
+        action: advance(line_spacing_factor)
+      - kind: escape
+        action: cancel_command
+
+  - id: line_spacing_factor
+    text: "Enter line spacing factor or distance <1x>:"
+    notes: "Value like 2x for double spacing, or an absolute distance"
+    accepts:
+      - kind: number
+        action: set_spacing_then_advance(opposite_corner_or_option)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_rotation
+    text: "Specify rotation angle <0>:"
+    accepts:
+      - kind: number
+        action: set_rotation_then_advance(opposite_corner_or_option)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_style
+    text: "Enter style name or [?] <{TEXTSTYLE}>:"
+    accepts:
+      - kind: keyword
+        value: "?"
+        action: list_styles_then_loop(set_style)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: number
+        notes: "style name string"
+        action: set_style_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_width
+    text: "Specify width:"
+    notes: "0 = no word wrap; width of the longest line"
+    accepts:
+      - kind: number
+        action: set_width_then_advance(opposite_corner_or_option)
+      - kind: pick
+        notes: "pick a point to define width from first corner"
+        action: set_width_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: set_columns
+    text: "Enter column type [Dynamic/Static/No columns] <No columns>:"
+    accepts:
+      - kind: keyword
+        value: D
+        long: Dynamic
+        action: advance(column_settings)
+      - kind: keyword
+        value: S
+        long: Static
+        action: advance(column_count)
+      - kind: keyword
+        value: N
+        long: "No columns"
+        action: advance(opposite_corner_or_option)
+      - kind: enter
+        action: use_default_then_advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: column_count
+    text: "Enter number of columns:"
+    accepts:
+      - kind: number
+        action: advance(column_settings)
+      - kind: escape
+        action: cancel_command
+
+  - id: column_settings
+    text: "Specify total width:"
+    accepts:
+      - kind: number
+        action: advance(opposite_corner_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: enter_text
+    text: ""
+    notes: |
+      Command-line version: type text directly. Enter creates a new line within
+      the MText. A blank line (Enter on empty) ends text entry and creates the
+      object. GUI version: opens in-place rich text editor with formatting ribbon.
+    accepts:
+      - kind: enter
+        condition: "line is empty"
+        action: end_command_create_mtext
+
+sysvars_read:
+  - TEXTSIZE      # default text height
+  - TEXTSTYLE     # current text style name
+  - MTEXTFIXED    # controls editor display behavior
+  - MTEXTTOOLBAR  # controls formatting toolbar visibility
+  - MTEXTCOLUMN   # column auto-height setting
+  - CLAYER        # current layer
+  - CECOLOR       # current entity color
+
+sysvars_written:
+  - TEXTSIZE      # updated when height is entered
+
+sysvar_definitions:
+  MTEXTFIXED:
+    type: integer
+    default: 2
+    persistence: registry
+    valid_values:
+      0: "Display editor at actual text size, position, and rotation"
+      1: "Same as 0"
+      2: "Display at legible size, horizontal orientation for easy editing"
+    notes: Controls how the In-Place Text Editor displays MText during editing.
+  MTEXTTOOLBAR:
+    type: integer
+    default: 1
+    persistence: registry
+    valid_values:
+      0: "Do not display Text Formatting toolbar"
+      1: "Display Text Formatting toolbar"
+    notes: Controls visibility of the formatting toolbar during MTEXT editing.
+  MTEXTCOLUMN:
+    type: integer
+    default: 0
+    persistence: drawing
+    notes: Sets the default column setting for new MText objects.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_or_formatting_menu
+
+cancel_semantics:
+  esc_once:    close_editor_discard_changes
+  esc_in_editor: close_editor_save_text
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — T = MTEXT, MT = MTEXT"
+      - "CAD Forum: AutoCAD command MTEXT"
+    confidence: high
+  prompts.first_corner:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad-for-mac/learn-explore/caas/CloudHelp/cloudhelp/2015/ENU/AutoCAD-MAC-Core/files/GUID-F94BE932-DA31-437E-9610-27F46ACD5711-htm.html"
+      - "Autodesk Knowledge Network -MTEXT 2019"
+    confidence: high
+  prompts.opposite_corner_or_option:
+    sources:
+      - "Autodesk Knowledge Network -MTEXT command (2015–2025)"
+      - "https://help.autodesk.com/cloudhelp/2025/ENU/AutoCAD-Core/files/GUID-F94BE932-DA31-437E-9610-27F46ACD5711.htm"
+    confidence: high
+  sysvars.MTEXTFIXED:
+    sources:
+      - "Autodesk Forum MTEXTFIXED discussion"
+      - "CADproTips: Multiline Text and System Variables in AutoCAD"
+    confidence: medium
+  line_spacing:
+    sources:
+      - "Autodesk Knowledge Network -MTEXT — 'At least'/'Exactly' line spacing options"
+    confidence: medium
+  columns:
+    sources:
+      - "Autodesk Knowledge Network -MTEXT — Dynamic/Static/No columns"
+    confidence: medium
+    note: Column sub-prompts are less well documented; settings flow may differ.
+
+unverified:
+  - exact prompt wording for Columns sub-options (Dynamic/Static flow and sub-prompts)
+  - whether MTEXTCOLUMN sysvar exists or if column defaults are stored differently
+  - whether the GUI MTEXT ribbon is active during the command or only after boundary is defined
+  - Escape behavior during in-place editor — some sources say Esc saves, others say it discards
+  - Line spacing factor format — "2x" notation vs. plain number

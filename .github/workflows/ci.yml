@@ -1,0 +1,95 @@
+name: CI
+
+# One job, no inter-job artifacts, on a GitHub-hosted runner. It runs the same
+# script a developer runs locally before pushing (scripts/local-ci.sh).
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  # FirebaseExtended/action-hosting-deploy creates a GitHub Check Run for the
+  # preview deploy status — needs checks:write or it 403s with "Resource not
+  # accessible by integration" (seen on PR #198's first collapsed-CI run).
+  checks: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      VERBOSE: '1'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+
+      - name: Install wasm-pack
+        run: |
+          if command -v wasm-pack >/dev/null 2>&1; then
+            echo "wasm-pack already present: $(wasm-pack --version)"
+            exit 0
+          fi
+          for i in 1 2 3 4 5; do
+            if curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh; then
+              exit 0
+            fi
+            echo "wasm-pack install attempt $i failed; retrying in $((i * 5))s"
+            sleep $((i * 5))
+          done
+          exit 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # self-installer default dest (~/setup-pnpm) is a fixed shared path —
+          # concurrent jobs race on it (ENOTEMPTY on rmdir, seen on PR #198).
+          dest: ~/.setup-pnpm-${{ runner.name }}
+      - name: Configure pnpm store (per-runner)
+        # Same shared-$HOME race as above, for the content-addressable
+        # store pnpm install populates (default ~/Library/pnpm/store) —
+        # confirmed on PR #198 (ERR_PNPM_ENOENT mid-install, concurrent
+        # runners copying from/pruning the same store).
+        run: pnpm config set store-dir ~/.pnpm-store-${{ runner.name }} --global
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        # System deps are pre-provisioned on the runner host (once, via
+        # `sudo npx playwright install-deps`) — see #218. `--with-deps` would
+        # redundantly re-attempt `sudo apt-get install` on every run, which
+        # fails non-interactively (no TTY/password) on a self-hosted runner.
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Local CI — rust, wasm, lint, unit, build
+        run: ./scripts/local-ci.sh fast
+
+      - name: E2E — Playwright
+        run: ./scripts/local-ci.sh e2e
+        env:
+          # Two runners share this Mac. Each gets its own preview port so one
+          # runner's port cleanup cannot kill the other's server mid-suite.
+          PLAYWRIGHT_PORT: '4173'
+
+# Firebase PR-preview deploy retired (#221) — see DECISIONS.md SD-09.
+# No CI-driven Cloudflare replacement; per-PR preview URLs, if needed, come
+# from a manual `wrangler pages deploy --branch=pr-<n>`.

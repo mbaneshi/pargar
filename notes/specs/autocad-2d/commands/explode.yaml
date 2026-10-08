@@ -1,0 +1,149 @@
+# AutoCAD EXPLODE — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: EXPLODE
+category: modify
+aliases: [X]
+shortcut: X
+
+description: |
+  Breaks a compound object into its component objects. The visual appearance
+  may remain the same, but color, linetype, and lineweight of exploded objects
+  may revert to BYLAYER. Explode operates on one level only — nested compound
+  objects require multiple explodes.
+
+explode_results:
+  # Maps input object types to their exploded output
+  block_reference:
+    result: component objects (lines, arcs, circles, text, nested blocks, etc.)
+    notes: |
+      Non-uniformly scaled blocks (different X/Y/Z scale factors) cannot be
+      exploded. Blocks with attributes lose attribute values and revert to
+      attribute definitions (ATTDEF). Nested blocks remain as block references
+      and must be exploded again.
+  polyline:
+    result: individual line and arc segments
+    notes: Width information is discarded; segments become zero-width lines/arcs.
+  lightweight_polyline:
+    result: individual line and arc segments
+    notes: Same as polyline — width and bulge data lost.
+  multiline:
+    result: individual lines and arcs
+  region:
+    result: lines, arcs, and splines
+  mtext:
+    result: text objects (DTEXT/TEXT)
+  dimension:
+    result: lines, arcs, solids (arrowheads), and mtext
+    notes: Exploded dimensions lose associativity and cannot be restored.
+  leader:
+    result: lines, splines, mtext, and tolerance/block references
+    notes: Exploded leaders lose associativity.
+  hatch:
+    result: lines (for pattern hatches) or nothing meaningful for solid hatches
+    notes: Exploding hatches is generally discouraged as they cannot be easily restored.
+  table:
+    result: lines and mtext
+  mesh:
+    result: faces (3DFACE objects)
+  3d_solid:
+    result: regions and bodies (requires EXPLODE or XPLODE)
+  associative_array:
+    result: individual copies of the arrayed objects
+    notes: Array loses associativity; becomes independent objects.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_set
+      - kind: enter
+        condition: selection_set_non_empty
+        action: emit_explode_then_end
+      - kind: escape
+        action: cancel_command
+
+command_line_feedback:
+  on_success: |
+    No explicit prompt after selection — objects are exploded immediately
+    upon pressing Enter after selection. The command line may display
+    "n object(s) exploded" or a count of objects that could not be exploded.
+  on_failure: |
+    Objects that cannot be exploded produce a message:
+    "n was not able to be exploded." or "1 could not be exploded."
+    This applies to non-uniformly scaled blocks, xrefs, and certain proxies.
+
+objects_that_cannot_be_exploded:
+  - External references (xrefs)
+  - Non-uniformly scaled blocks (different X, Y, Z scale factors)
+  - Block references inserted with MINSERT
+  - Proxy objects (from applications not loaded)
+  - Objects on locked layers (produces error message)
+
+sysvars_read: []
+sysvars_written: []
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+related_commands:
+  XPLODE:
+    description: |
+      Extended explode — provides control over color, layer, linetype, lineweight,
+      and inherit-from-parent properties of the resulting objects. Allows exploding
+      selected objects individually or globally with specified property overrides.
+
+provenance:
+  aliases:
+    sources:
+      - "https://www.cadtuto.com/explode-shortcut/"
+      - "Multiple alias lists confirm X as the EXPLODE alias"
+    confidence: high
+  explode_results:
+    sources:
+      - "AutoCAD 2024 Help EXPLODE command reference (GUID-E98BCEF4)"
+      - "https://cadmastercoach.com/commands/modify/explode"
+      - "https://ukcommunity.arkance.world/hc/en-us/articles/21550481731730-To-Xplode-or-not-to-Explode-in-AutoCAD-That-is-the-question"
+    confidence: high
+  objects_cannot_be_exploded:
+    sources:
+      - "https://www.autodesk.com/support/technical/article/caas/sfdcarticles/sfdcarticles/Cannot-explode-objects-in-AutoCAD.html"
+      - "AutoCAD 2024 Help"
+    confidence: high
+  prompts:
+    sources:
+      - "AutoCAD 2024 Help EXPLODE command reference"
+      - "https://cadmastercoach.com/commands/explode"
+    confidence: high
+    note: EXPLODE is one of the simplest commands — select and Enter. No sub-prompts.
+
+unverified:
+  - exact feedback message wording — "n object(s) exploded" vs "n objects exploded" vs silent
+  - whether MINSERT blocks can be exploded in AutoCAD 2024+ (historically they cannot)
+  - whether 3D solids produce regions or bodies or both upon explode
+  - exact behavior of exploding a hatch with SOLID pattern (may produce a region or nothing)
+  - whether attribute values are preserved in any mode during block explode (XPLODE may preserve them)

@@ -1,0 +1,3 @@
+[workspace]
+members = ["packages/kernel", "server"]
+resolver = "2"

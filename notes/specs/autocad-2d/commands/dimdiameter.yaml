@@ -1,0 +1,161 @@
+# AutoCAD DIMDIAMETER — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: DIMDIAMETER
+category: dimension
+aliases: [DDI]
+shortcut: DDI
+
+description: |
+  Creates a diameter dimension for a circle or arc. Displays the measured diameter
+  with a diameter symbol prefix (Unicode U+2205, displayed as "Ø"). The dimension
+  line passes through the center of the circle/arc. If space is tight, text and
+  arrows may be placed outside. Uses the current DIMSTYLE.
+
+prompts:
+  - id: select_arc_or_circle
+    text: "Select arc or circle:"
+    accepts:
+      - kind: pick
+        action: set_entity_then_advance(dim_line_location)
+        note: |
+          Accepts circles, arcs, and arc segments of polylines.
+          A fillet is considered an arc. The pick point on the arc/circle
+          determines the default angle of the dimension line.
+      - kind: escape
+        action: cancel_command
+
+  - id: dim_line_location
+    text: "Specify dimension line location or [Mtext/Text/Angle]:"
+    accepts:
+      - kind: pick
+        action: place_dimension_then_end
+        note: |
+          The pick point determines the angle at which the diameter line passes
+          through the center. The dimension text shows the diameter symbol +
+          measured diameter value by default (e.g., "Ø10.000").
+      - kind: keyword
+        value: M
+        long: Mtext
+        action: open_mtext_editor_then_return(dim_line_location)
+        note: opens the In-Place Text Editor for multiline dimension text
+      - kind: keyword
+        value: T
+        long: Text
+        action: advance(text_override)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(text_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_override
+    text: "Enter dimension text <{MEASURED_DIAMETER}>:"
+    accepts:
+      - kind: number
+        action: set_text_override_then_return(dim_line_location)
+      - kind: enter
+        action: use_measured_value_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_angle
+    text: "Specify angle of dimension text:"
+    accepts:
+      - kind: number
+        action: set_text_angle_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - DIMSTYLE       # current dimension style name
+  - DIMSCALE       # overall dimension scale factor
+  - DIMTXT         # dimension text height
+  - DIMASZ         # arrowhead size
+  - DIMDEC         # decimal places for primary units
+  - DIMLFAC        # linear scale factor for dimension values
+  - DIMTAD         # text placement above/below dimension line
+  - DIMGAP         # gap between dimension line and text
+  - DIMCEN         # center mark size (0=none, >0=mark, <0=mark+lines)
+  - DIMATFIT       # controls placement of text and arrows when not enough space
+
+sysvars_written: []
+
+sysvar_definitions:
+  DIMCEN:
+    type: real
+    default: 0.09
+    persistence: drawing
+    notes: |
+      Controls center mark and centerline generation for DIMRADIUS and DIMDIAMETER.
+      0 = no center mark. Positive = center mark of that size.
+      Negative = center mark + centerlines extending beyond the circle.
+  DIMATFIT:
+    type: integer
+    default: 3
+    persistence: drawing
+    valid_values:
+      0: Both text and arrows placed outside extension lines
+      1: Move arrows first, then text if insufficient space
+      2: Move text first, then arrows if insufficient space
+      3: Either text or arrows moved, whichever fits best
+    notes: Controls how text and arrowheads are arranged when space is limited.
+
+repeats_with_space: false
+repeats_with_enter: false
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_no_entity_created
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — DDI"
+    confidence: high
+  prompts.select_arc_or_circle:
+    sources:
+      - "Autodesk Help GUID-2E64616D (AutoCAD 2018-2022)"
+      - "CAD Forum DIMDIAMETER page"
+    confidence: high
+  prompts.dim_line_location:
+    sources:
+      - "Autodesk Help GUID-2E64616D — confirms [Mtext/Text/Angle]"
+      - "CAD Forum — options: Mtext, Text, Angle"
+    confidence: high
+  diameter_symbol:
+    sources:
+      - "Autodesk Help — 'displays the dimension text with a diameter symbol'"
+      - "Multiple community references confirm Ø prefix"
+    confidence: high
+  sysvars:
+    sources:
+      - "Scribd DimVar document"
+      - "Autodesk Help — DIMCEN, DIMATFIT system variables"
+    confidence: medium
+
+unverified:
+  - whether the diameter symbol is always Ø (U+2205) or uses %%c control code internally
+  - whether DIMCEN generates a center mark when DIMDIAMETER is used (some sources say only DIMCENTER does this in newer versions)
+  - exact behavior when dimensioning an arc (does it show the full-circle diameter or arc-based measurement)
+  - whether DIMDIAMETER repeats with Space/Enter
+  - text placement behavior for very small circles where text doesn't fit

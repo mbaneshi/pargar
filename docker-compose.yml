@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+    container_name: nexus-platform-ir
+    restart: unless-stopped
+    # Traefik drops containers that aren't `healthy` (incl. `starting`), and the
+    # deploy's 200 check gives up after ~30s — keep the first probe well inside that.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks: [lab]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.cad-ir.rule=Host(`cad.houshkar.ir`)
+      - traefik.http.routers.cad-ir.entrypoints=web
+      - traefik.http.services.cad-ir.loadbalancer.server.port=80
+
+networks:
+  lab:
+    external: true

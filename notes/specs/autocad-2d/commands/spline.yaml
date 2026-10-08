@@ -1,0 +1,369 @@
+# AutoCAD SPLINE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: SPLINE
+category: draw
+aliases: [SPL]
+shortcut: SPL
+
+description: |
+  Creates a smooth curve (NURBS) that passes through or near a set of points.
+  Two creation methods: Fit (spline passes through fit points, degree 3 cubic
+  B-spline) and CV (control vertices define a control frame, degree 1-10).
+  The current method is controlled by the SPLMETHOD sysvar.
+
+prompts:
+  # === Initial prompt (Fit method — default) ===
+  - id: initial_fit
+    text: "Current settings: Method={SPLMETHOD_TEXT} Degree={SPLDEGREE}\nSpecify first point or [Method/Degree/Object]:"
+    note: |
+      SPLMETHOD_TEXT is "Fit" or "CV" depending on SPLMETHOD sysvar.
+      The "Current settings:" line is informational, displayed before the prompt.
+    accepts:
+      - kind: pick
+        action: store_first_fitpoint_then_advance(next_fitpoint)
+      - kind: number
+        action: store_first_fitpoint_then_advance(next_fitpoint)
+      - kind: keyword
+        value: M
+        long: Method
+        action: advance(method_choice)
+      - kind: keyword
+        value: D
+        long: Degree
+        action: advance(degree_value)
+      - kind: keyword
+        value: O
+        long: Object
+        action: advance(select_object)
+      - kind: escape
+        action: cancel_command
+
+  # === Method choice ===
+  - id: method_choice
+    text: "Enter spline creation method [Fit/CV] <{SPLMETHOD_TEXT}>:"
+    accepts:
+      - kind: keyword
+        value: F
+        long: Fit
+        action: set_method_fit_then_advance(initial_fit)
+      - kind: keyword
+        value: CV
+        long: CV
+        action: set_method_cv_then_advance(initial_cv)
+      - kind: enter
+        action: use_default_then_return
+      - kind: escape
+        action: cancel_command
+
+  # === Degree (for CV method) ===
+  - id: degree_value
+    text: "Enter degree of spline <{SPLDEGREE}>:"
+    note: Valid range 1-10. Only meaningful for CV method.
+    accepts:
+      - kind: number
+        action: set_degree_then_advance(initial_fit_or_cv)
+      - kind: enter
+        action: use_default_then_return
+      - kind: escape
+        action: cancel_command
+
+  # === Object conversion ===
+  - id: select_object
+    text: "Select object to convert to spline:"
+    note: |
+      Converts a 2D or 3D spline-fit polyline to an equivalent spline.
+      The original polyline is deleted.
+    accepts:
+      - kind: pick
+        action: convert_polyline_to_spline_then_end
+      - kind: escape
+        action: cancel_command
+
+  # === Fit point entry (Fit method) ===
+  - id: next_fitpoint
+    text: "Enter next point or [start Tangency/toLerance]:"
+    note: After the first fit point. No Close/Undo yet.
+    accepts:
+      - kind: pick
+        action: add_fitpoint_then_advance(next_fitpoint_chain)
+      - kind: number
+        action: add_fitpoint_then_advance(next_fitpoint_chain)
+      - kind: keyword
+        value: T
+        long: start Tangency
+        action: advance(start_tangency)
+      - kind: keyword
+        value: L
+        long: toLerance
+        action: advance(tolerance_value)
+      - kind: escape
+        action: cancel_command
+
+  - id: next_fitpoint_chain
+    text: "Enter next point or [Close/Undo/start Tangency/toLerance]:"
+    note: After 2+ fit points, Close and Undo become available.
+    accepts:
+      - kind: pick
+        action: add_fitpoint_then_loop(next_fitpoint_chain)
+      - kind: number
+        action: add_fitpoint_then_loop(next_fitpoint_chain)
+      - kind: keyword
+        value: C
+        long: Close
+        action: close_spline_then_end
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_fitpoint
+      - kind: keyword
+        value: T
+        long: start Tangency
+        action: advance(start_tangency)
+      - kind: keyword
+        value: L
+        long: toLerance
+        action: advance(tolerance_value)
+      - kind: enter
+        action: advance(end_tangency)
+      - kind: escape
+        action: cancel_command
+
+  - id: start_tangency
+    text: "Specify start tangent direction:"
+    note: |
+      Specifies a tangent condition at the starting point of the spline.
+      Press Enter to compute automatically.
+    accepts:
+      - kind: pick
+        action: set_start_tangent_then_return
+      - kind: number
+        action: set_start_tangent_then_return
+      - kind: enter
+        action: compute_auto_tangent_then_return
+      - kind: escape
+        action: cancel_command
+
+  - id: tolerance_value
+    text: "Specify fit tolerance <{current_tolerance}>:"
+    note: |
+      Tolerance 0 = spline passes exactly through fit points.
+      Larger values allow the spline to deviate from fit points.
+      Applies to all fit points except start and end (which always have tolerance 0).
+    accepts:
+      - kind: number
+        action: set_tolerance_then_return
+      - kind: enter
+        action: use_default_then_return
+      - kind: escape
+        action: cancel_command
+
+  - id: end_tangency
+    text: "Specify end tangent direction:"
+    note: |
+      After pressing Enter to finish adding points, this prompt appears.
+      Press Enter to compute automatically.
+    accepts:
+      - kind: pick
+        action: set_end_tangent_then_create_spline
+      - kind: number
+        action: set_end_tangent_then_create_spline
+      - kind: enter
+        action: compute_auto_tangent_then_create_spline
+      - kind: escape
+        action: cancel_command
+
+  # === CV (Control Vertex) entry ===
+  - id: initial_cv
+    text: "Current settings: Method=CV Degree={SPLDEGREE}\nSpecify first point or [Method/Degree/Object]:"
+    accepts:
+      - kind: pick
+        action: store_first_cv_then_advance(next_cv)
+      - kind: number
+        action: store_first_cv_then_advance(next_cv)
+      - kind: keyword
+        value: M
+        long: Method
+        action: advance(method_choice)
+      - kind: keyword
+        value: D
+        long: Degree
+        action: advance(degree_value)
+      - kind: keyword
+        value: O
+        long: Object
+        action: advance(select_object)
+      - kind: escape
+        action: cancel_command
+
+  - id: next_cv
+    text: "Enter next point:"
+    note: After the first CV. Need minimum (degree+1) points to create a valid spline.
+    accepts:
+      - kind: pick
+        action: add_cv_then_advance(next_cv_chain)
+      - kind: number
+        action: add_cv_then_advance(next_cv_chain)
+      - kind: escape
+        action: cancel_command
+
+  - id: next_cv_chain
+    text: "Enter next point or [Close/Undo]:"
+    note: After 2+ control vertices.
+    accepts:
+      - kind: pick
+        action: add_cv_then_loop(next_cv_chain)
+      - kind: number
+        action: add_cv_then_loop(next_cv_chain)
+      - kind: keyword
+        value: C
+        long: Close
+        action: close_cv_spline_then_end
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_cv
+      - kind: enter
+        action: create_cv_spline_then_end
+      - kind: escape
+        action: cancel_command
+
+close_behavior:
+  description: |
+    Close makes the last point coincide with the first point and creates a
+    periodic spline with C2 curvature continuity along the entire loop.
+    For Fit method, start/end tangency prompts are skipped when closing.
+
+knot_parameterization:
+  description: |
+    Applies to Fit method only. Controlled by SPLKNOTS sysvar.
+    Determines how the component curves between successive fit points are blended.
+  options:
+    chord: |
+      Chord-Length method. Knot spacing is proportional to the distance between
+      each pair of fit points. Produces the most predictable results.
+    sqrt_chord: |
+      Square Root Chord method. Knot spacing is proportional to the square root
+      of the distance between fit points. Smoother than chord for unevenly
+      spaced points.
+    uniform: |
+      Equidistant method. Equal knot spacing regardless of fit point spacing.
+      Can overshoot fit points in some configurations.
+
+sysvars_read:
+  - SPLMETHOD      # 0 = Fit, 1 = CV
+  - SPLDEGREE      # degree of spline (1-10 for CV, always 3 for Fit)
+  - SPLKNOTS       # knot parameterization: 0 = Chord, 1 = SqrtChord, 2 = Uniform
+  - OSMODE
+  - ORTHOMODE
+
+sysvars_written:
+  - SPLMETHOD      # updated when Method option used
+  - SPLDEGREE      # updated when Degree option used
+  - LASTPOINT
+
+sysvar_definitions:
+  SPLMETHOD:
+    type: integer
+    default: 0
+    valid_values:
+      0: Fit (default) - spline passes through fit points
+      1: CV - spline is defined by control vertices
+    persistence: registry
+    notes: Controls the default spline creation method.
+  SPLDEGREE:
+    type: integer
+    default: 3
+    valid_range: 1-10
+    persistence: registry
+    notes: |
+      Degree of the spline. For Fit method, this is always 3 (cubic).
+      For CV method, can be 1 (linear) through 10. A degree-1 CV spline
+      is a polyline; degree-2 is quadratic; degree-3 is cubic (most common).
+  SPLKNOTS:
+    type: integer
+    default: 0
+    valid_values:
+      0: Chord (default)
+      1: Square Root Chord
+      2: Uniform
+    persistence: registry
+    notes: |
+      Knot parameterization method for Fit splines. Does not apply to CV splines.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command
+  esc_twice: cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: SPL = SPLINE"
+    confidence: high
+  prompts.initial:
+    sources:
+      - "Autodesk SPLINE Command reference (2020, 2021, 2022)"
+      - "CAD Forum SPLINE command page"
+      - "Autodesk community: Spline detailed explanation thread"
+    confidence: high
+    note: |
+      "Specify first point or [Method/Degree/Object]:" confirmed in multiple
+      Autodesk help versions. The "Current settings:" info line is also confirmed.
+  prompts.fit_points:
+    sources:
+      - "Autodesk SPLINE Command reference: fit point sub-options"
+      - "Javatpoint Spline in AutoCAD tutorial"
+    confidence: medium
+    note: |
+      Exact prompt text for "Enter next point or [start Tangency/toLerance]:"
+      is synthesized from documentation. The capitalization pattern (start Tangency,
+      toLerance) indicates the shortcut keys (T and L).
+  prompts.cv_points:
+    sources:
+      - "Autodesk SPLINE Command reference: CV sub-options"
+    confidence: medium
+    note: CV method prompts are less frequently documented in tutorials.
+  prompts.tangency:
+    sources:
+      - "Autodesk SPLINE Command reference"
+    confidence: medium
+  knot_parameterization:
+    sources:
+      - "Autodesk SPLINE Command reference: Knots option documentation"
+    confidence: high
+  sysvars:
+    sources:
+      - "Autodesk SPLINE Command reference"
+      - "CAD Forum SPLINE command page"
+    confidence: medium
+    note: SPLKNOTS options (Chord/SqrtChord/Uniform) confirmed; exact sysvar values need verification.
+
+unverified:
+  - exact prompt text for CV method subsequent points — "Enter next point or [Close/Undo]:" vs possible alternative wording
+  - exact prompt for start/end tangency — "Specify start tangent direction:" needs live verification
+  - whether Method/Degree/Object are available only at the first prompt or throughout
+  - whether SPLKNOTS=1 is "Square Root Chord" or "Sqrt Chord" in the prompt text
+  - minimum number of points for CV method — should be (degree+1) but needs verification
+  - exact transition point where Close/Undo become available in Fit mode (after 2 or 3 points)
+  - whether Knots option appears in the prompt sequence or is only settable via SPLKNOTS sysvar before starting SPLINE

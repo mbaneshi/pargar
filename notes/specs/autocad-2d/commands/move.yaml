@@ -1,0 +1,135 @@
+# AutoCAD MOVE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: MOVE
+category: modify
+aliases: [M]
+shortcut: M
+
+description: |
+  Moves selected objects a specified distance and direction. Specify a base
+  point and a second point to define the displacement vector, or enter a
+  displacement directly. Unlike COPY, MOVE relocates objects rather than
+  duplicating them and does not loop for multiple operations.
+
+prompts:
+  - id: select_objects
+    text: "Select objects:"
+    accepts:
+      - kind: pick
+        action: add_to_selection_then_loop(select_objects)
+      - kind: enter
+        action: confirm_selection_then_advance(base_point_or_option)
+      - kind: escape
+        action: cancel_command
+
+  - id: base_point_or_option
+    text: "Specify base point or [Displacement] <Displacement>:"
+    accepts:
+      - kind: pick
+        action: set_base_point_then_advance(second_point)
+      - kind: number
+        notes: "coordinate input for base point"
+        action: set_base_point_then_advance(second_point)
+      - kind: keyword
+        value: D
+        long: Displacement
+        action: advance(displacement)
+      - kind: enter
+        action: advance(displacement)
+      - kind: escape
+        action: cancel_command
+
+  - id: displacement
+    text: "Specify displacement <0.0000, 0.0000, 0.0000>:"
+    notes: |
+      The displacement is interpreted as a relative X,Y,Z vector from the
+      current position. Objects are moved by that vector immediately.
+    accepts:
+      - kind: number
+        notes: "x,y or x,y,z displacement vector"
+        action: emit_move_by_displacement_then_end
+      - kind: pick
+        action: emit_move_by_displacement_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: second_point
+    text: "Specify second point or <use first point as displacement>:"
+    accepts:
+      - kind: pick
+        action: emit_move_then_end
+      - kind: number
+        action: emit_move_then_end
+      - kind: enter
+        notes: "uses base point coordinates as relative displacement"
+        action: emit_move_by_base_as_displacement_then_end
+      - kind: escape
+        action: cancel_command
+
+sysvars_read: []
+
+sysvars_written: []
+
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_undo_move
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — M = MOVE"
+      - "https://xlncad.com/autocad-command-alias/"
+    confidence: high
+  prompts.base_point_or_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2020/ENU/AutoCAD-Core/files/GUID-47CE7325-84C0-4414-80A3-29DC98392709-htm.html"
+      - "https://cadmastercoach.com/commands/modify/move"
+    confidence: high
+  prompts.second_point:
+    sources:
+      - "Autodesk Knowledge Network MOVE 2020"
+      - "Tutorial-AutoCAD: How to use MOVE & COPY Commands"
+    confidence: high
+  prompts.displacement:
+    sources:
+      - "Autodesk Knowledge Network MOVE 2020 — displacement as first-point-as-displacement"
+      - "CAD Forum: AutoCAD command MOVE"
+    confidence: medium
+    note: |
+      The Displacement keyword option is present in modern AutoCAD (2020+).
+      Older versions may show "Specify base point or displacement:" as a single
+      prompt without the [Displacement] bracket option.
+  cancel_semantics:
+    sources:
+      - "General AutoCAD behavior — Escape during MOVE cancels and restores objects to original position"
+    confidence: medium
+
+unverified:
+  - exact prompt wording "Specify base point or [Displacement] <Displacement>:" — older versions may use "Specify base point or displacement:" without bracket notation
+  - whether MOVE has any sysvars it reads (e.g., grip-related variables)
+  - whether Escape after specifying second point (before pressing Enter) undoes the move or commits it
+  - whether the Displacement option prompt shows the current displacement default or zeros

@@ -1,0 +1,209 @@
+# AutoCAD DIST — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: DIST
+category: inquiry
+aliases: [DI]
+shortcut: DI
+
+description: |
+  Measures the distance and angle between two specified points. Reports the
+  straight-line distance, angle in the XY plane, angle from the XY plane,
+  and delta X, delta Y, delta Z values in the command line. Does not create
+  any geometry — purely an inquiry/measurement command.
+
+prompts:
+  - id: first_point
+    text: "Specify first point:"
+    accepts:
+      - kind: pick
+        action: set_first_point_then_advance(second_point)
+      - kind: number
+        format: "x,y"
+        action: set_first_point_then_advance(second_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: second_point
+    text: "Specify second point or [Multiple points]:"
+    accepts:
+      - kind: pick
+        action: compute_and_report_then_end
+        note: |
+          Reports to command line:
+            Distance = <value>, Angle in XY Plane = <degrees>,
+            Angle from XY Plane = <degrees>
+            Delta X = <value>, Delta Y = <value>, Delta Z = <value>
+          The number of decimal places and unit format is controlled by LUNITS
+          and LUPREC (linear) and AUNITS and AUPREC (angular).
+      - kind: number
+        format: "x,y"
+        action: compute_and_report_then_end
+      - kind: keyword
+        value: M
+        long: Multiple points
+        action: advance(multiple_next_point)
+        note: |
+          Multiple points mode was added in AutoCAD 2021. Allows measuring
+          cumulative distance across multiple segments.
+      - kind: escape
+        action: cancel_command
+
+  - id: multiple_next_point
+    text: "Specify next point or [Arc/Length/Undo/Total] <Total>:"
+    accepts:
+      - kind: pick
+        action: add_segment_then_loop(multiple_next_point)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(multiple_arc_point)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(multiple_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment_then_loop(multiple_next_point)
+      - kind: keyword
+        value: T
+        long: Total
+        action: report_total_distance_then_end
+      - kind: enter
+        action: report_total_distance_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: multiple_arc_point
+    text: "Specify endpoint of arc (hold Ctrl to switch direction) or [Angle/CEnter/CLose/Direction/Line/Radius/Second pt/Undo]:"
+    accepts:
+      - kind: pick
+        action: add_arc_segment_then_loop(multiple_next_point)
+      - kind: keyword
+        value: L
+        long: Line
+        action: advance(multiple_next_point)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+      - kind: keyword
+        value: CL
+        long: CLose
+        action: close_and_report_total_then_end
+      - kind: enter
+        action: report_total_distance_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: multiple_length
+    text: "Enter length of line segment:"
+    accepts:
+      - kind: number
+        action: add_length_segment_then_loop(multiple_next_point)
+      - kind: escape
+        action: cancel_command
+
+output_format:
+  description: |
+    After two points are specified, AutoCAD displays in the command line:
+      Distance = 12.3456, Angle in XY Plane = 45, Angle from XY Plane = 0
+      Delta X = 8.7298, Delta Y = 8.7298, Delta Z = 0.0000
+    Format controlled by LUNITS, LUPREC (distance), AUNITS, AUPREC (angle).
+
+sysvars_read:
+  - LUNITS         # linear unit format (1=scientific, 2=decimal, etc.)
+  - LUPREC         # linear unit precision (decimal places)
+  - AUNITS         # angular unit format (0=degrees, 1=dms, etc.)
+  - AUPREC         # angular unit precision (decimal places)
+  - DISTANCE       # last distance computed (read-only sysvar)
+
+sysvars_written:
+  - DISTANCE       # updated with the last computed distance
+
+sysvar_definitions:
+  DISTANCE:
+    type: real
+    default: 0.0
+    persistence: not_saved
+    notes: |
+      Stores the last distance computed by DIST. Read-only from the command
+      line but accessible via AutoLISP (getvar "DISTANCE"). Not saved to
+      drawing — volatile, session-only.
+  LUNITS:
+    type: integer
+    default: 2
+    persistence: drawing
+    valid_values:
+      1: Scientific
+      2: Decimal
+      3: Engineering
+      4: Architectural
+      5: Fractional
+  LUPREC:
+    type: integer
+    default: 4
+    persistence: drawing
+    notes: Number of decimal places for linear measurements.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command
+  esc_twice:   cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — DI"
+      - "autodesk.com command aliases blog post"
+    confidence: high
+  prompts.first_point:
+    sources:
+      - "CAD Forum DIST page — 'Specify first point:'"
+      - "Autodesk Help GUID-A72EADC7 (AutoCAD for Mac 2024)"
+    confidence: high
+  prompts.second_point:
+    sources:
+      - "CAD Forum DIST page"
+      - "weskill.org DIST article"
+    confidence: medium
+    note: |
+      The Multiple points option was added in AutoCAD 2021. Older versions
+      only have 'Specify second point:' with no keyword options.
+  output_format:
+    sources:
+      - "weskill.org — confirms Distance, Angle in XY Plane, Delta X/Y/Z"
+      - "Multiple community references"
+    confidence: high
+  sysvars.DISTANCE:
+    sources:
+      - "afralisp.net AutoCAD System Variables reference"
+    confidence: medium
+
+unverified:
+  - exact wording of second point prompt — 'Specify second point or [Multiple points]:' vs just 'Specify second point:'
+  - whether Multiple points mode is available in AutoCAD LT
+  - exact prompt wording for multiple points sub-options (Arc, Length, etc.)
+  - whether DIST reports 'Angle from XY Plane' in 2D-only mode or only in 3D
+  - whether the DISTANCE sysvar is updated when using Multiple points mode (total or last segment?)

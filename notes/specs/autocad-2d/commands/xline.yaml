@@ -1,0 +1,269 @@
+# AutoCAD XLINE — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: XLINE
+category: draw
+aliases: [XL]
+shortcut: XL
+
+description: |
+  Creates an infinite construction line passing through two specified points.
+  Options allow horizontal, vertical, angled, bisecting, and offset construction
+  lines. Xlines are useful as reference/construction geometry and trim boundaries.
+
+prompts:
+  - id: point_or_option
+    text: "Specify a point or [Hor/Ver/Ang/Bisect/Offset]:"
+    accepts:
+      - kind: pick
+        action: set_root_point_then_advance(through_point)
+      - kind: number
+        notes: "coordinate input"
+        action: set_root_point_then_advance(through_point)
+      - kind: keyword
+        value: H
+        long: Hor
+        action: advance(horizontal_point)
+      - kind: keyword
+        value: V
+        long: Ver
+        action: advance(vertical_point)
+      - kind: keyword
+        value: A
+        long: Ang
+        action: advance(angle_option)
+      - kind: keyword
+        value: B
+        long: Bisect
+        action: advance(bisect_vertex)
+      - kind: keyword
+        value: O
+        long: Offset
+        action: advance(offset_distance)
+      - kind: escape
+        action: cancel_command
+
+  - id: through_point
+    text: "Specify through point:"
+    accepts:
+      - kind: pick
+        action: emit_xline_then_loop(through_point)
+      - kind: number
+        action: emit_xline_then_loop(through_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: horizontal_point
+    text: "Specify through point:"
+    accepts:
+      - kind: pick
+        action: emit_horizontal_xline_then_loop(horizontal_point)
+      - kind: number
+        action: emit_horizontal_xline_then_loop(horizontal_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: vertical_point
+    text: "Specify through point:"
+    accepts:
+      - kind: pick
+        action: emit_vertical_xline_then_loop(vertical_point)
+      - kind: number
+        action: emit_vertical_xline_then_loop(vertical_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: angle_option
+    text: "Enter angle of xline (0) or [Reference]:"
+    accepts:
+      - kind: number
+        action: set_angle_then_advance(angle_through_point)
+      - kind: keyword
+        value: R
+        long: Reference
+        action: advance(angle_reference_line)
+      - kind: enter
+        action: use_default_angle_then_advance(angle_through_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: angle_reference_line
+    text: "Select a line object:"
+    accepts:
+      - kind: pick
+        action: set_reference_then_advance(angle_relative)
+      - kind: escape
+        action: cancel_command
+
+  - id: angle_relative
+    text: "Enter angle of xline <0>:"
+    accepts:
+      - kind: number
+        action: set_angle_then_advance(angle_through_point)
+      - kind: enter
+        action: use_default_angle_then_advance(angle_through_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: angle_through_point
+    text: "Specify through point:"
+    accepts:
+      - kind: pick
+        action: emit_angled_xline_then_loop(angle_through_point)
+      - kind: number
+        action: emit_angled_xline_then_loop(angle_through_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: bisect_vertex
+    text: "Specify angle vertex point:"
+    accepts:
+      - kind: pick
+        action: set_vertex_then_advance(bisect_start)
+      - kind: number
+        action: set_vertex_then_advance(bisect_start)
+      - kind: escape
+        action: cancel_command
+
+  - id: bisect_start
+    text: "Specify angle start point:"
+    accepts:
+      - kind: pick
+        action: set_start_then_advance(bisect_end)
+      - kind: number
+        action: set_start_then_advance(bisect_end)
+      - kind: escape
+        action: cancel_command
+
+  - id: bisect_end
+    text: "Specify angle end point:"
+    accepts:
+      - kind: pick
+        action: emit_bisect_xline_then_loop(bisect_end)
+      - kind: number
+        action: emit_bisect_xline_then_loop(bisect_end)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: offset_distance
+    text: "Specify offset distance or [Through] <{OFFSETDIST}>:"
+    accepts:
+      - kind: number
+        action: set_distance_then_advance(offset_select_line)
+      - kind: keyword
+        value: T
+        long: Through
+        action: advance(offset_select_line_through)
+      - kind: enter
+        condition: OFFSETDIST > 0
+        action: use_default_then_advance(offset_select_line)
+      - kind: escape
+        action: cancel_command
+
+  - id: offset_select_line
+    text: "Select a line object:"
+    accepts:
+      - kind: pick
+        action: set_source_then_advance(offset_side)
+      - kind: escape
+        action: cancel_command
+
+  - id: offset_side
+    text: "Specify side to offset:"
+    accepts:
+      - kind: pick
+        action: emit_offset_xline_then_loop(offset_select_line)
+      - kind: escape
+        action: end_command
+
+  - id: offset_select_line_through
+    text: "Select a line object:"
+    accepts:
+      - kind: pick
+        action: set_source_then_advance(offset_through_point)
+      - kind: escape
+        action: cancel_command
+
+  - id: offset_through_point
+    text: "Specify through point:"
+    accepts:
+      - kind: pick
+        action: emit_offset_xline_through_then_loop(offset_select_line_through)
+      - kind: escape
+        action: end_command
+
+sysvars_read:
+  - OFFSETDIST    # used as default for offset sub-option
+
+sysvars_written: []
+
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu
+
+cancel_semantics:
+  esc_once:    cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — XL = XLINE"
+      - "BricsCAD Help Center XLINE command page"
+    confidence: high
+  prompts.point_or_option:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2020/ENU/AutoCAD-Core/files/GUID-40650DCE-E8CA-483C-8E25-7FA9AB6992C1-htm.html"
+      - "https://help.autodesk.com/cloudhelp/2022/ENU/AutoCAD-Core/files/GUID-40650DCE-E8CA-483C-8E25-7FA9AB6992C1.htm"
+      - "BricsCAD Help Center XLINE command — confirms Hor/Ver/Ang/Bisect/Offset options"
+      - "GstarCAD blog: XLINE command tutorial"
+    confidence: high
+  prompts.angle_option:
+    sources:
+      - "Autodesk Knowledge Network XLINE 2020 — Angle sub-option with Reference"
+      - "GstarCAD blog: XLINE command"
+    confidence: medium
+    note: Reference sub-option confirmed in multiple clone-CAD references; exact AutoCAD prompt wording may differ slightly.
+  prompts.bisect:
+    sources:
+      - "Autodesk Knowledge Network XLINE 2020 — Bisect sub-option: vertex, start angle, end angle"
+    confidence: medium
+  prompts.offset:
+    sources:
+      - "Autodesk Knowledge Network XLINE 2020 — Offset sub-option"
+      - "Man and Machine UK: AutoCAD Construction Lines tutorial"
+    confidence: medium
+
+unverified:
+  - exact prompt text for Angle sub-option — "Enter angle of xline (0) or [Reference]:" is synthesized from multiple sources
+  - whether the Offset sub-option within XLINE reads/writes OFFSETDIST sysvar (assumed by analogy with OFFSET command)
+  - whether Bisect loops for multiple end points or only creates one xline per invocation
+  - whether Horizontal and Vertical sub-options use the same "Specify through point:" wording as the main two-point mode

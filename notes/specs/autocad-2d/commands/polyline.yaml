@@ -1,0 +1,457 @@
+# AutoCAD POLYLINE (PLINE) — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: PLINE
+category: draw
+aliases: [PL]
+shortcut: PL
+
+description: |
+  Creates a 2D polyline, a single entity composed of contiguous line and arc
+  segments with optional width. Supports variable-width segments, arc sub-mode,
+  Close, and Undo within the command.
+
+prompts:
+  - id: start_point
+    text: "Specify start point:"
+    note: |
+      After specifying start point, AutoCAD displays the informational line:
+      "Current line-width is {PLINEWID}"
+    accepts:
+      - kind: pick
+        action: store_start_then_advance(line_mode)
+      - kind: number
+        action: store_start_then_advance(line_mode)
+      - kind: escape
+        action: cancel_command
+
+  # === Line-segment mode ===
+  - id: line_mode
+    text: "Specify next point or [Arc/Halfwidth/Length/Undo/Width]:"
+    note: |
+      Close option appears after 2+ segments. Prompt becomes
+      "Specify next point or [Arc/Close/Halfwidth/Length/Undo/Width]:" after
+      the first segment.
+    accepts:
+      - kind: pick
+        action: create_line_segment_then_loop(line_mode_with_close)
+      - kind: number
+        action: create_line_segment_then_loop(line_mode_with_close)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(arc_mode)
+      - kind: keyword
+        value: H
+        long: Halfwidth
+        action: advance(halfwidth_start)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(line_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(width_start)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: line_mode_with_close
+    text: "Specify next point or [Arc/Close/Halfwidth/Length/Undo/Width]:"
+    accepts:
+      - kind: pick
+        action: create_line_segment_then_loop(line_mode_with_close)
+      - kind: number
+        action: create_line_segment_then_loop(line_mode_with_close)
+      - kind: keyword
+        value: A
+        long: Arc
+        action: advance(arc_mode_with_close)
+      - kind: keyword
+        value: C
+        long: Close
+        action: create_closing_line_segment_then_end
+      - kind: keyword
+        value: H
+        long: Halfwidth
+        action: advance(halfwidth_start)
+      - kind: keyword
+        value: L
+        long: Length
+        action: advance(line_length)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(width_start)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: line_length
+    text: "Specify length of line:"
+    note: Draws a line segment at the current angle with the specified length.
+    accepts:
+      - kind: number
+        action: create_line_by_length_then_loop(line_mode_with_close)
+      - kind: escape
+        action: cancel_command
+
+  # === Width / Halfwidth prompts ===
+  - id: width_start
+    text: "Specify starting width <{PLINEWID}>:"
+    accepts:
+      - kind: number
+        action: store_start_width_then_advance(width_end)
+      - kind: enter
+        action: use_default_then_advance(width_end)
+      - kind: escape
+        action: cancel_command
+
+  - id: width_end
+    text: "Specify ending width <{starting_width}>:"
+    accepts:
+      - kind: number
+        action: set_width_then_return
+      - kind: enter
+        action: use_default_then_return
+      - kind: escape
+        action: cancel_command
+
+  - id: halfwidth_start
+    text: "Specify starting half-width <{current_halfwidth}>:"
+    accepts:
+      - kind: number
+        action: store_start_halfwidth_then_advance(halfwidth_end)
+      - kind: enter
+        action: use_default_then_advance(halfwidth_end)
+      - kind: escape
+        action: cancel_command
+
+  - id: halfwidth_end
+    text: "Specify ending half-width <{starting_halfwidth}>:"
+    accepts:
+      - kind: number
+        action: set_halfwidth_then_return
+      - kind: enter
+        action: use_default_then_return
+      - kind: escape
+        action: cancel_command
+
+  # === Arc-segment mode ===
+  - id: arc_mode
+    text: "Specify endpoint of arc or [Angle/CEnter/CLose/Direction/Halfwidth/Line/Radius/Second pt/Undo/Width]:"
+    note: CLose option may not appear until 2+ segments exist.
+    accepts:
+      - kind: pick
+        action: create_arc_segment_then_loop(arc_mode_with_close)
+      - kind: number
+        action: create_arc_segment_then_loop(arc_mode_with_close)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(arc_angle)
+      - kind: keyword
+        value: CE
+        long: CEnter
+        action: advance(arc_center)
+      - kind: keyword
+        value: CL
+        long: CLose
+        action: create_closing_arc_segment_then_end
+      - kind: keyword
+        value: D
+        long: Direction
+        action: advance(arc_direction)
+      - kind: keyword
+        value: H
+        long: Halfwidth
+        action: advance(halfwidth_start)
+      - kind: keyword
+        value: L
+        long: Line
+        action: advance(line_mode_with_close)
+      - kind: keyword
+        value: R
+        long: Radius
+        action: advance(arc_radius)
+      - kind: keyword
+        value: S
+        long: Second pt
+        action: advance(arc_second_pt)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_segment
+      - kind: keyword
+        value: W
+        long: Width
+        action: advance(width_start)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: arc_mode_with_close
+    text: "Specify endpoint of arc or [Angle/CEnter/CLose/Direction/Halfwidth/Line/Radius/Second pt/Undo/Width]:"
+    note: Same prompt as arc_mode; CLose is always listed but only functional with 2+ segments.
+    accepts:
+      - kind: pick
+        action: create_arc_segment_then_loop(arc_mode_with_close)
+      - kind: keyword
+        value: CL
+        long: CLose
+        action: create_closing_arc_segment_then_end
+      - kind: keyword
+        value: L
+        long: Line
+        action: advance(line_mode_with_close)
+      # (all other accepts same as arc_mode)
+
+  # === Arc sub-prompts ===
+  - id: arc_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: store_angle_then_advance(arc_angle_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_angle_endpoint
+    text: "Specify endpoint of arc or [CEnter/Radius]:"
+    accepts:
+      - kind: pick
+        action: create_arc_by_angle_then_loop
+      - kind: number
+        action: create_arc_by_angle_then_loop
+      - kind: keyword
+        value: CE
+        action: advance(arc_angle_center)
+      - kind: keyword
+        value: R
+        action: advance(arc_angle_radius)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_angle_center
+    text: "Specify center point of arc:"
+    accepts:
+      - kind: pick
+        action: create_arc_by_angle_center_then_loop
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_angle_radius
+    text: "Specify radius of arc:"
+    accepts:
+      - kind: number
+        action: create_arc_by_angle_radius_then_advance_endpoint
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center
+    text: "Specify center point of arc:"
+    accepts:
+      - kind: pick
+        action: store_center_then_advance(arc_center_options)
+      - kind: number
+        action: store_center_then_advance(arc_center_options)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center_options
+    text: "Specify endpoint of arc or [Angle/Length]:"
+    accepts:
+      - kind: pick
+        action: create_arc_by_center_then_loop
+      - kind: keyword
+        value: A
+        action: advance(arc_center_angle)
+      - kind: keyword
+        value: L
+        action: advance(arc_center_length)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_arc_by_center_angle_then_loop
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_center_length
+    text: "Specify length of chord:"
+    accepts:
+      - kind: number
+        action: create_arc_by_center_length_then_loop
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_direction
+    text: "Specify the tangent direction from the start point of arc:"
+    accepts:
+      - kind: number
+        action: store_direction_then_advance(arc_direction_endpoint)
+      - kind: pick
+        action: store_direction_then_advance(arc_direction_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_direction_endpoint
+    text: "Specify endpoint of arc:"
+    accepts:
+      - kind: pick
+        action: create_arc_by_direction_then_loop
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_radius
+    text: "Specify radius of arc:"
+    accepts:
+      - kind: number
+        action: store_radius_then_advance(arc_radius_endpoint)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_radius_endpoint
+    text: "Specify endpoint of arc or [Angle]:"
+    accepts:
+      - kind: pick
+        action: create_arc_by_radius_then_loop
+      - kind: keyword
+        value: A
+        action: advance(arc_radius_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_radius_angle
+    text: "Specify included angle:"
+    accepts:
+      - kind: number
+        action: create_arc_by_radius_angle_then_loop
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_second_pt
+    text: "Specify second point of arc:"
+    accepts:
+      - kind: pick
+        action: store_second_then_advance(arc_second_pt_end)
+      - kind: escape
+        action: cancel_command
+
+  - id: arc_second_pt_end
+    text: "Specify endpoint of arc:"
+    accepts:
+      - kind: pick
+        action: create_arc_3pt_then_loop
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - PLINEWID       # default polyline width
+  - PLINETYPE      # 0 = old-format, 1 = optimized, 2 = optimized (default)
+  - OSMODE
+  - ORTHOMODE
+
+sysvars_written:
+  - PLINEWID       # updated when Width is set
+  - LASTPOINT
+
+sysvar_definitions:
+  PLINEWID:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: |
+      Stores the default polyline width. Displayed in the informational line
+      after specifying the start point: "Current line-width is {PLINEWID}".
+      Updated when Width is changed during the PLINE command.
+  PLINETYPE:
+    type: integer
+    default: 2
+    valid_values:
+      0: Old-format polylines (compatible with pre-R14)
+      1: Optimized polylines (no width, no curve fit, no spline fit)
+      2: Optimized polylines (default, allows all features)
+    persistence: registry
+    notes: Controls whether new polylines use optimized (lightweight) format.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE, interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar, interrupts: false }
+    F11: { action: toggle_otrack, interrupts: false }
+    F12: { action: toggle_dynin, interrupts: false }
+  transparent_commands:
+    "'PAN": { interrupts: false }
+    "'ZOOM": { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag: pan_view
+    wheel_scroll: zoom_about_cursor
+    right_click: show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once: cancel_command_discard_uncommitted_segment
+  esc_twice: cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Standard AutoCAD alias list: PL = PLINE"
+    confidence: high
+  prompts.start_point:
+    sources:
+      - "Autodesk PLINE Command reference (2023)"
+      - "MyCadSite polyline tutorial"
+      - "GStarCAD PLINE command reference"
+    confidence: high
+  prompts.line_mode:
+    sources:
+      - "Autodesk PLINE Command reference: 'Specify next point or [Arc/Halfwidth/Length/Undo/Width]:'"
+      - "Engineering.com polyline article"
+      - "Peachpit polyline tutorial"
+    confidence: high
+  prompts.arc_mode:
+    sources:
+      - "Autodesk PLINE Command reference: arc sub-options"
+      - "Engineering.com: 'Specify endpoint of arc or [Angle/CEnter/CLose/Direction/Halfwidth/Line/Radius/Second pt/Undo/Width]:'"
+    confidence: high
+  sysvars.PLINEWID:
+    sources:
+      - "Autodesk PLINE docs: 'Current line-width is' display"
+      - "Autodesk forum: Set Linewidth in PLINE thread"
+    confidence: high
+  arc_sub_prompts:
+    sources:
+      - "Autodesk PLINE Command reference"
+      - "progeSOFT manual polyline section"
+    confidence: medium
+    note: |
+      Arc sub-prompt exact wording (Angle/CEnter/Radius sub-paths) derived
+      from combined Autodesk + clone documentation. Live verification recommended.
+
+unverified:
+  - exact prompt text for arc sub-modes (arc_angle_endpoint, arc_center_options, etc.) — synthesized from documentation, may have minor wording differences
+  - whether Close appears in both line_mode and arc_mode from the very first segment or only after 2+ segments
+  - whether CL (CLose) in arc mode uses an arc or a line to close
+  - PLINETYPE sysvar valid_values exact behavior in modern AutoCAD

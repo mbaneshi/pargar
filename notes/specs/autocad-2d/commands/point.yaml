@@ -1,0 +1,107 @@
+# AutoCAD POINT — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: POINT
+category: draw
+aliases: [PO]
+shortcut: PO
+
+description: |
+  Creates a point object at a specified location. Point display style and size
+  are controlled by PDMODE and PDSIZE system variables. The command repeats
+  automatically, placing one point per pick until cancelled.
+
+prompts:
+  - id: specify_point
+    text: "Specify a point:"
+    accepts:
+      - kind: pick
+        action: emit_point_then_loop(specify_point)
+      - kind: number
+        notes: "coordinate input (x,y or x,y,z)"
+        action: emit_point_then_loop(specify_point)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - PDMODE       # controls point display style
+  - PDSIZE       # controls point display size
+  - CLAYER       # current layer
+  - ELEVATION    # current elevation (Z if omitted)
+  - CECOLOR      # current entity color
+
+sysvars_written: []
+
+sysvar_definitions:
+  PDMODE:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: "Dot (single pixel)"
+      1: "Nothing displayed"
+      2: "Plus sign (+)"
+      3: "X mark"
+      4: "Short vertical line"
+    notes: |
+      Values 32, 64, or 96 add a surrounding shape (circle, square, or
+      circle+square) to the base figure. For example, 34 = plus sign inside
+      a circle. After changing PDMODE, existing points update on next REGEN.
+  PDSIZE:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: |
+      0 = 5% of drawing area height. Positive = absolute size in drawing units.
+      Negative = percentage of viewport size. Does not affect PDMODE 0 or 1.
+      Points on the Defpoints layer are always displayed as dots regardless.
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu
+
+cancel_semantics:
+  esc_once:    cancel_command
+
+provenance:
+  aliases:
+    sources:
+      - "Autodesk official alias list — PO = POINT"
+      - "https://www.g-wlearning.com/cad/0633/resources/data/app_d.pdf"
+    confidence: high
+  prompts.specify_point:
+    sources:
+      - "Autodesk Knowledge Network POINT command pages (2020–2022)"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2022/ENU/AutoCAD-Core/files/GUID-3F5861A1-9A63-42A6-8F12-3395771BAA6D-htm.html"
+    confidence: high
+  sysvars.PDMODE:
+    sources:
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2016/ENU/AutoCAD-Core/files/GUID-82F9BB52-D026-4D6A-ABA6-BF29641F459B-htm.html"
+      - "Autodesk support article: Points not visible in current view"
+    confidence: high
+  sysvars.PDSIZE:
+    sources:
+      - "https://help.autodesk.com/view/ACD/2024/ENU/?guid=GUID-826CA91D-704B-400B-B784-7FCC9619AFB9"
+    confidence: high
+
+unverified:
+  - whether POINT command loops automatically or requires MULTIPLE subcommand — most sources say it loops until Escape
+  - exact prompt wording may be "Specify a point:" or "Current point modes: PDMODE=X PDSIZE=Y\nSpecify a point:" with a status line prefix
+  - whether current elevation is silently applied when Z is omitted (assumed yes from docs)

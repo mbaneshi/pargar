@@ -1,0 +1,159 @@
+# AutoCAD TRIM — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+
+command: TRIM
+category: modify
+aliases: [TR]
+shortcut: TR
+
+description: |
+  Trims objects to meet the edges of other objects. In Quick mode (default since
+  AutoCAD 2021), all objects act as cutting edges automatically. In Standard mode,
+  the user explicitly selects cutting edges first.
+
+modes:
+  quick:
+    default_in: AutoCAD 2021+
+    sysvar_value: TRIMEXTENDMODE bit-flag for quick mode
+    behavior: |
+      Skip the cutting-edge selection. Every visible object is implicitly a
+      potential cutting edge. User just clicks objects to trim.
+  standard:
+    default_in: AutoCAD ≤ 2020 (legacy)
+    behavior: |
+      Phase 1: select cutting edges (any number, Enter to finish).
+      Phase 2: select objects to trim against those edges.
+
+prompts:
+  quick_mode:
+    - id: select_or_option
+      text: "[Cutting edges/Crossing/mOde/Project/eRase/Undo]: Select object to trim or shift-select to extend or"
+      accepts:
+        - kind: pick
+          action: trim_at_pick
+        - kind: shift_pick
+          action: extend_at_pick
+        - kind: keyword
+          values: [T, C, O, P, R, U]
+          long: [Cutting edges, Crossing, mOde, Project, eRase, Undo]
+        - kind: enter
+          action: end_command
+        - kind: escape
+          action: end_command
+
+  standard_mode:
+    - id: select_cutting_edges
+      text: "Select cutting edges ... \nSelect objects or <select all>:"
+      accepts:
+        - kind: pick (multi)
+        - kind: enter
+          action: select_all_cutting_edges
+        - kind: keyword
+          value: ALL
+    - id: select_to_trim
+      text: "Select object to trim or shift-select to extend or [Fence/Crossing/Project/Edge/eRase/Undo]:"
+      accepts:
+        - kind: pick
+          action: trim_at_pick_then_loop
+        - kind: shift_pick
+          action: extend_at_pick_then_loop
+        - kind: keyword
+          values: [F, C, P, E, R, U]
+        - kind: enter
+          action: end_command
+
+options:
+  Fence:
+    desc: Pick two-or-more points; every entity crossing the open polyline gets trimmed.
+    sub_prompt: "Specify first fence point or pick/drag cursor:"
+  Crossing:
+    desc: Drag a rectangle; entities within or crossing it get trimmed.
+    sub_prompt: "Specify first corner:"
+  Project:
+    desc: Sets PROJMODE — None, Ucs (XY plane of UCS), View.
+    sub_prompt: "Enter a projection option [None/Ucs/View] <{PROJMODE}>:"
+  Edge:
+    desc: Sets EDGEMODE — Extend (boundary extends to implied intersection) or No extend.
+    sub_prompt: "Enter an implied edge extension mode [Extend/No extend] <{EDGEMODE}>:"
+  eRase:
+    desc: Mid-command escape hatch — pick an entity to delete it without leaving TRIM.
+    sub_prompt: "Select objects to erase or <exit>:"
+  Undo:
+    desc: Reverses the last trim within this TRIM invocation.
+  mOde:
+    desc: Switches between Quick and Standard for the current invocation.
+    sub_prompt: "Enter a trim mode option [Quick/Standard] <{TRIMEXTENDMODE}>:"
+
+shift_to_extend:
+  description: |
+    Holding Shift while picking inverts the operation — TRIM behaves as EXTEND
+    on the picked entity, using the selected cutting edges as boundaries.
+  power_user_pattern: |
+    Trim and extend are the same gesture; Shift toggles intent. This is muscle
+    memory baked into 30+ years of AutoCAD users — you don't switch commands.
+
+sysvars_read:  [TRIMEXTENDMODE, EDGEMODE, PROJMODE, TRIMEDGES]
+sysvars_written: [TRIMEXTENDMODE, EDGEMODE, PROJMODE]
+
+sysvar_definitions:
+  TRIMEXTENDMODE:
+    type: integer (bit-coded)
+    default: 3
+    bits:
+      1: Quick mode default (vs Standard)
+      2: Implied edge extension allowed
+    persistence: registry
+  EDGEMODE:
+    type: integer
+    default: 0
+    valid_values:
+      0: No extend — only actual intersections count
+      1: Extend — implied intersections count
+    persistence: registry
+  PROJMODE:
+    type: integer
+    default: 1
+    valid_values: { 0: None, 1: UCS-XY, 2: Current view }
+    persistence: registry
+
+repeats_with_space: true
+
+modeless_during_command:
+  fkeys: { F3: ok, F8: ok, F10: ok, F11: ok, F12: ok }
+  transparent_commands: ["'PAN", "'ZOOM"]
+  mouse:
+    middle_drag: pan
+    wheel_scroll: zoom_about_cursor
+    right_click: context_menu
+
+cancel_semantics:
+  esc_once: end_command
+  esc_twice: clear_selection_too
+
+provenance:
+  alias_TR:
+    sources: [stress-free.co.nz acad.pgp mirror, BricsCAD docs]
+    confidence: high
+  prompts:
+    sources:
+      - "BricsCAD TRIM docs (help.bricsys.com/en-us/document/command-reference/t/trim-command)"
+      - "AutoCAD search snippet: '[Fence Crossing Project Edge eRase Undo]'"
+      - "CAD Forum TRIM page (cadforum.cz/en/command.asp?cmd=TRIM)"
+    confidence: high
+    note: Exact prompt punctuation synthesized from 3 sources; AutoCAD wording may differ slightly.
+  modes:
+    sources:
+      - "AutoCAD 2024 docs reference TRIMEXTENDMODE for Quick/Standard switch"
+      - "BricsCAD docs explicitly document Quick vs Standard"
+    confidence: high
+  shift_extend:
+    sources: [CAD Forum, multiple community references]
+    confidence: high
+  sysvars:
+    sources: [BricsCAD docs, AutoCAD search snippets]
+    confidence: high
+    note: TRIMEDGES specifically mentioned for Quick-mode hatch behavior; less central.
+
+unverified:
+  - exact wording of Quick-mode prompt (sources differ on capitalization/order)
+  - whether modern AutoCAD shows the option list before "Select object to trim or" or after

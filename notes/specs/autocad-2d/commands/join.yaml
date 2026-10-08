@@ -1,0 +1,154 @@
+# AutoCAD JOIN — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: JOIN
+category: modify
+aliases: [J]
+shortcut: J
+
+description: |
+  Combines a series of finite linear and open curved objects at their common
+  endpoints to create a single 2D or 3D object. The source object determines
+  the resulting object type. Endpoints must be contiguous (coincident or
+  within a small tolerance).
+
+join_rules:
+  line_to_line:
+    result: single_line
+    requirement: Lines must be collinear (on the same infinite line). Gaps are bridged.
+  arc_to_arc:
+    result: single_arc_or_circle
+    requirement: Arcs must lie on the same imaginary circle (same center and radius). If they form a complete circle, the result is a circle.
+  polyline_to_line_or_arc:
+    result: single_polyline
+    requirement: Objects must be coplanar and endpoints must be contiguous.
+  elliptical_arc_to_elliptical_arc:
+    result: single_elliptical_arc_or_ellipse
+    requirement: Must lie on the same ellipse. If they complete the ellipse, result is an ellipse.
+  spline_to_spline:
+    result: single_spline
+    requirement: Endpoints must be contiguous.
+  line_and_arc_mixed:
+    result: single_polyline
+    requirement: Objects must be coplanar and endpoints contiguous. If a spline is included in the mix, the result becomes a spline.
+  3d_polyline:
+    result: single_3d_polyline
+    requirement: Endpoints must be contiguous.
+  spline_to_anything:
+    result: single_spline
+    notes: |
+      When a spline is joined with any other object type (line, arc, polyline),
+      the result is always a spline. This can be unexpected.
+
+prompts:
+  - id: select_source
+    text: "Select source object or multiple objects to join at once:"
+    accepts:
+      - kind: pick
+        action: set_source_then_advance(select_objects_to_join)
+      - kind: pick
+        note: multiple_selection
+        action: join_all_selected_then_end
+      - kind: escape
+        action: cancel_command
+
+  - id: select_objects_to_join
+    text: "Select objects to join:"
+    accepts:
+      - kind: pick
+        action: add_to_join_set
+      - kind: enter
+        condition: join_set_non_empty
+        action: emit_join_then_end
+      - kind: escape
+        action: cancel_command
+
+command_line_feedback:
+  on_success: |
+    Reports the number of objects joined and the result type, e.g.:
+    "2 objects converted to 1 polyline"
+    "3 lines joined into 1 line"
+    "2 arcs converted to 1 circle"
+  on_failure: |
+    Objects that cannot be joined produce messages like:
+    "0 objects joined to source"
+    "Objects are not coplanar"
+    or objects are silently discarded from the join operation.
+
+valid_source_objects:
+  - Line
+  - Arc
+  - Elliptical arc
+  - Polyline (2D)
+  - 3D polyline
+  - Spline
+  - Helix
+
+sysvars_read: []
+sysvars_written: []
+sysvar_definitions: {}
+
+repeats_with_space: true
+repeats_with_enter: true
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+related_commands:
+  PEDIT_JOIN:
+    description: |
+      PEDIT > Join provides more flexibility for joining objects into polylines.
+      It supports a Fuzz Distance parameter that bridges small gaps between
+      endpoints. Objects do not need to be perfectly contiguous.
+      Prompt: "Enter fuzz distance or [Jointype] <0.0000>:"
+
+provenance:
+  aliases:
+    sources:
+      - "https://www.canadacad.ca/how-to-use-the-join-command-in-autocad/"
+      - "Multiple community references confirm J as the JOIN alias"
+    confidence: high
+  prompts:
+    sources:
+      - "AutoCAD 2024 JOIN command reference (GUID-4D2A28C3)"
+      - "https://knowledge.autodesk.com/support/autocad/learn-explore/caas/CloudHelp/cloudhelp/2021/ENU/AutoCAD-Core/files/GUID-4D2A28C3-3E7F-4830-BE6A-7C9907C95488-htm.html"
+      - "https://cadmastercoach.com/commands/modify/join"
+    confidence: high
+  join_rules:
+    sources:
+      - "AutoCAD 2024 Help Joining 2D Objects (GUID-29D46150)"
+      - "https://designandmotion.net/autodesk/autocad-civil-3d/joining-arcs-and-lines-creates-splines-in-autocad/"
+      - "https://forums.autodesk.com/t5/autocad-forum/joining-lines-amp-arcs-creates-splines-instead-of-the-intended/td-p/12506992"
+    confidence: high
+  join_rules.spline_to_anything:
+    sources:
+      - "https://designandmotion.net/autodesk/autocad-civil-3d/joining-arcs-and-lines-creates-splines-in-autocad/"
+      - "Autodesk Forum thread on spline creation during join"
+    confidence: high
+    note: This is a well-documented and commonly reported behavior.
+
+unverified:
+  - exact prompt wording "Select source object or multiple objects to join at once:" — may vary between versions
+  - whether JOIN has a gap tolerance by default or requires exact endpoint coincidence (PEDIT Join has fuzz distance; JOIN itself may not)
+  - exact feedback message format — "2 objects converted to 1 polyline" vs "2 objects joined into 1 polyline"
+  - whether Helix is a valid source object for JOIN in all versions
+  - whether JOIN works with regions or 3D solids (likely not, but unverified)

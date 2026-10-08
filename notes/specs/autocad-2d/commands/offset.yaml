@@ -1,0 +1,261 @@
+# AutoCAD OFFSET — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: OFFSET
+category: modify
+aliases: [O]
+shortcut: O
+
+description: |
+  Creates parallel copies of lines, polylines, splines, arcs, circles, and edges
+  at a specified distance or through a specified point.
+
+prompts:
+  - id: distance_or_option
+    text: "Specify offset distance or [Through/Erase/Layer] <{OFFSETDIST}>:"
+    accepts:
+      - kind: number
+        action: set_distance_then_advance(select_object)
+      - kind: keyword
+        value: T
+        long: Through
+        action: advance(select_object_through)
+      - kind: keyword
+        value: E
+        long: Erase
+        action: advance(erase_toggle)
+      - kind: keyword
+        value: L
+        long: Layer
+        action: advance(layer_choice)
+      - kind: enter
+        condition: OFFSETDIST > 0
+        action: use_default_then_advance(select_object)
+      - kind: enter
+        condition: OFFSETDIST < 0
+        action: advance(select_object_through)
+      - kind: escape
+        action: cancel_command
+
+  - id: erase_toggle
+    text: "Erase source object after offsetting? [Yes/No] <{OFFSETERASE_Y_OR_N}>:"
+    accepts:
+      - kind: keyword
+        value: Y
+        action: set_OFFSETERASE(1)_then_advance(distance_or_option)
+      - kind: keyword
+        value: N
+        action: set_OFFSETERASE(0)_then_advance(distance_or_option)
+      - kind: enter
+        action: use_default_then_advance(distance_or_option)
+
+  - id: layer_choice
+    text: "Enter layer option for offset objects [Current/Source] <{OFFSETLAYER}>:"
+    accepts:
+      - kind: keyword
+        value: C
+        action: set_OFFSETLAYER(current)_then_advance(distance_or_option)
+      - kind: keyword
+        value: S
+        action: set_OFFSETLAYER(source)_then_advance(distance_or_option)
+      - kind: enter
+        action: use_default_then_advance(distance_or_option)
+
+  - id: select_object
+    text: "Select object to offset or [Exit/Undo] <Exit>:"
+    accepts:
+      - kind: pick
+        action: emit_pick_target_then_advance(select_side)
+      - kind: keyword
+        value: E
+        long: Exit
+        action: end_command
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_offset_in_command
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: select_object_through
+    text: "Select object to offset or [Exit/Undo] <Exit>:"
+    accepts:
+      - kind: pick
+        action: emit_pick_target_then_advance(through_point)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: select_side
+    text: "Specify point on side to offset or [Exit/Multiple/Undo] <Exit>:"
+    accepts:
+      - kind: pick
+        action: emit_offset_then_loop(select_object)
+      - kind: keyword
+        value: M
+        long: Multiple
+        action: enter_multiple_submode
+      - kind: keyword
+        value: E
+        action: end_command
+      - kind: keyword
+        value: U
+        action: undo_last_offset_in_command
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: through_point
+    text: "Specify through point or [Exit/Multiple/Undo] <Exit>:"
+    accepts:
+      - kind: pick
+        action: emit_offset_through_then_loop(select_object_through)
+      - kind: keyword
+        value: M
+        action: enter_multiple_submode
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+multiple_submode:
+  description: |
+    After choosing Multiple at the side prompt, the same source object is reused;
+    each pick creates another offset until M is exited or Enter ends the command.
+  loops_within: select_side
+
+sysvars_read:
+  - OFFSETDIST       # last distance; negative implies Through default
+  - OFFSETERASE      # whether source is deleted
+  - OFFSETLAYER      # 0 = current, 1 = source
+  - OFFSETGAPTYPE    # polyline gap fill: 0 extend, 1 fillet, 2 chamfer
+
+sysvars_written:
+  - OFFSETDIST       # updated when a numeric distance is entered
+  - OFFSETERASE      # updated when Erase Y/N chosen
+  - OFFSETLAYER      # updated when Layer Current/Source chosen
+
+sysvar_definitions:
+  OFFSETDIST:
+    type: real
+    default: -1.0
+    persistence: drawing
+    notes: |
+      Stores last offset distance. Negative values indicate the user last chose
+      the Through option, so the default action on Enter at the distance prompt
+      is Through rather than numeric.
+  OFFSETGAPTYPE:
+    type: integer
+    default: 0
+    persistence: registry
+    valid_values:
+      0: Extend segments to fill gaps (default)
+      1: Fill gaps with filleted arcs (radius = offset distance)
+      2: Fill gaps with chamfered segments
+    notes: Applies only to closed-polyline offsetting.
+  OFFSETERASE:
+    type: integer
+    default: 0
+    persistence: drawing
+    notes: Resets to 0 (Off) at the start of each new drawing.
+  OFFSETLAYER:
+    type: integer
+    default: 0
+    valid_values:
+      0: Place offset entity on the current layer
+      1: Place offset entity on the source entity's layer
+    persistence: drawing
+
+repeats_with_space: true        # pressing Space/Enter at the command line repeats OFFSET
+repeats_with_enter: true
+repeat_preserves_options: true  # OFFSETDIST recall = effectively last distance is the new default
+
+modeless_during_command:
+  # Behaviors that MUST work mid-OFFSET without canceling it
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_preserve_selection
+  esc_twice:   cancel_command_clear_selection
+
+context_menu_during_command:
+  # acad.cuix POP_SHORTCUTMENU during a transparent-permitting command:
+  - Enter
+  - Cancel
+  - "Recent Input >"
+  - Pan
+  - Zoom
+  - Snap Overrides
+
+provenance:
+  aliases:
+    sources:
+      - "https://www.stress-free.co.nz/sites/default/files/images/tutorials/autocad.2002/acad_pgp_aliases_06.html"
+    confidence: high
+  prompts.distance_or_option:
+    sources:
+      - "BricsCAD OFFSET docs (AutoCAD-compatible) — confirms Through/Erase/Layer at distance prompt"
+      - "Cadapult Software offset-command-options article (search snippet)"
+      - "Autodesk blog: AutoCAD Offset Options — Tuesday Tips with Frank (search snippet)"
+    confidence: high
+  prompts.select_object:
+    sources:
+      - "BricsCAD OFFSET docs"
+      - "Multiple community references confirm Exit/Undo loop pattern"
+    confidence: high
+  prompts.select_side:
+    sources:
+      - "BricsCAD OFFSET docs"
+      - "Multiple community references confirm Multiple sub-option"
+    confidence: high
+  multiple_submode:
+    sources:
+      - "BricsCAD OFFSET docs"
+    confidence: medium
+    note: BricsCAD documents the Multiple sub-option; AutoCAD docs not directly fetched (Autodesk SPA blocked WebFetch). Cross-confirmed in 3+ community references.
+  sysvars.OFFSETDIST:
+    sources:
+      - "Autodesk Forum thread: 'Change system variable, offset, change system variable back'"
+      - "BricsCAD docs"
+    confidence: high
+  sysvars.OFFSETGAPTYPE:
+    sources:
+      - "Autodesk Help URL GUID-EB2A74E1-... (unfetchable, SPA bootloader returned)"
+      - "Imaginit Civil Solutions blog (Rand Group archive)"
+      - "Arkance UK Community: 'AutoCAD Offset Command Offsetgaptype variable'"
+      - "AutoCAD Tips: 'OFFSET Polyline True Distance — OFFSETGAPTYPE'"
+    confidence: high
+  sysvars.OFFSETERASE:
+    sources:
+      - "BricsCAD OFFSET docs (notes reset-on-new-drawing behavior)"
+    confidence: medium
+    note: AutoCAD-specific persistence semantics need verification by senior AutoCADer.
+  modeless_during_command:
+    sources:
+      - "AutoCAD Customization Guide concept of transparent commands"
+      - "General AutoCAD behavior (apostrophe-prefix transparent commands)"
+    confidence: medium
+    note: Specific F-key behavior mid-OFFSET should be verified by live capture.
+
+unverified:
+  - exact wording of "Specify offset distance or [Through/Erase/Layer] <X>:" — synthesized from BricsCAD + community sources; AutoCAD's exact string may differ in punctuation
+  - exact wording of "Specify point on side to offset or [Exit/Multiple/Undo] <Exit>:" — same caveat
+  - whether OFFSETERASE persists across drawings in modern AutoCAD (BricsCAD says no; Autodesk docs not directly accessible)

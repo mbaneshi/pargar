@@ -1,0 +1,28 @@
+---
+// Starlight footer + a licence / source line.
+import Default from "@astrojs/starlight/components/Footer.astro";
+const fa = Astro.locals.starlightRoute.locale === "fa";
+const repo = "https://github.com/mbaneshi/pargar";
+---
+
+<Default><slot /></Default>
+<p class="credit">
+  {fa ? (
+    <>پرگار متن‌باز است · کد <a href={`${repo}/blob/dev/LICENSE`} dir="ltr">Apache-2.0</a> · مستندات <a href={`${repo}/blob/dev/LICENSE-docs`} dir="ltr">CC BY 4.0</a> · <a href={repo}>گیت‌هاب</a></>
+  ) : (
+    <>Pargar is open source · Code <a href={`${repo}/blob/dev/LICENSE`}>Apache-2.0</a> · Docs <a href={`${repo}/blob/dev/LICENSE-docs`}>CC BY 4.0</a> · <a href={repo}>GitHub</a></>
+  )}
+</p>
+
+<style>
+  .credit {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline-light);
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    text-align: center;
+  }
+  .credit a { color: var(--sl-color-accent); text-decoration: none; font-weight: 600; }
+  .credit a:hover { color: var(--sl-color-accent-high); text-decoration: underline; }
+</style>

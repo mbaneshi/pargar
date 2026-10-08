@@ -1,0 +1,170 @@
+# AutoCAD FILLET — behavior specification
+# Extracted 2026-04-17. AutoCAD 2024/2025 baseline.
+
+command: FILLET
+category: modify
+aliases: [F]
+shortcut: F
+
+description: |
+  Rounds and fillets the edges of two 2D objects with an arc of a specified radius,
+  or trims them to meet at a corner when radius is 0. Works on lines, polylines,
+  arcs, circles, ellipses, splines (limited), rays, and xlines.
+
+prompts:
+  - id: first_object_or_option
+    text: "Current settings: Mode = {TRIMMODE}, Radius = {FILLETRAD}\nSelect first object or [Undo/Polyline/Radius/Trim/Multiple]:"
+    accepts:
+      - kind: pick
+        action: store_first_then_advance(second_object)
+      - kind: keyword
+        value: U
+        long: Undo
+        action: undo_last_fillet_in_command
+      - kind: keyword
+        value: P
+        long: Polyline
+        action: advance(polyline_pick)
+      - kind: keyword
+        value: R
+        long: Radius
+        action: advance(radius_input)
+      - kind: keyword
+        value: T
+        long: Trim
+        action: advance(trim_mode)
+      - kind: keyword
+        value: M
+        long: Multiple
+        action: enable_multiple_then_loop(first_object_or_option)
+      - kind: enter
+        action: end_command
+      - kind: escape
+        action: end_command
+
+  - id: second_object
+    text: "Select second object or shift-select to apply corner or [Radius]:"
+    accepts:
+      - kind: pick
+        action: emit_fillet
+      - kind: shift_pick
+        action: emit_fillet_with_radius_zero  # power-user trick: shift forces R=0
+      - kind: keyword
+        value: R
+        action: advance(radius_input)
+
+  - id: radius_input
+    text: "Specify fillet radius <{FILLETRAD}>:"
+    accepts:
+      - kind: number
+        action: set_FILLETRAD_then_advance(first_object_or_option)
+      - kind: enter
+        action: use_default_then_advance(first_object_or_option)
+
+  - id: polyline_pick
+    text: "Select 2D polyline:"
+    accepts:
+      - kind: pick
+        action: fillet_all_polyline_corners
+
+  - id: trim_mode
+    text: "Enter Trim mode option [Trim/No trim] <{TRIMMODE_string}>:"
+    accepts:
+      - kind: keyword
+        values: [T, N]
+        action: set_TRIMMODE_then_return(first_object_or_option)
+
+multiple_submode:
+  description: |
+    After choosing Multiple, the command stays active after each fillet pair —
+    selecting two objects produces a fillet, then prompt returns to first_object.
+    Esc / Enter exits.
+  loops_within: first_object_or_option
+
+power_user_patterns:
+  R0_corner_cleanup:
+    description: |
+      `F Enter R Enter 0 Enter pick pick` → trims two segments to a clean corner
+      with no arc. The single most common use of FILLET is NOT to add a fillet
+      but to clean up corners. This must work.
+    pattern: F R 0 → pick → pick
+  shift_corner:
+    description: |
+      Holding Shift on second-object pick forces R=0 for that pair only,
+      preserving the FILLETRAD setting.
+  multiple_chain:
+    description: |
+      F M → pick pairs continuously until Esc. Common when cleaning a large
+      drawing of overhangs.
+
+sysvars_read:  [FILLETRAD, TRIMMODE]
+sysvars_written: [FILLETRAD, TRIMMODE]
+
+sysvar_definitions:
+  FILLETRAD:
+    type: real
+    default: 0.0
+    persistence: drawing
+    notes: |
+      Stores the last-used fillet radius. Persists across invocations within
+      a drawing. Default 0 → corner cleanup behavior.
+  TRIMMODE:
+    type: integer
+    default: 1
+    valid_values:
+      0: No trim — fillet/chamfer added without trimming source segments
+      1: Trim — source segments trimmed to fillet endpoints
+    persistence: registry
+
+repeats_with_space: true
+repeat_preserves_options: true  # FILLETRAD recall
+
+modeless_during_command:
+  fkeys: { F3: ok, F8: ok, F10: ok, F11: ok, F12: ok }
+  transparent_commands: ["'PAN", "'ZOOM"]
+  mouse:
+    middle_drag: pan
+    wheel_scroll: zoom_about_cursor
+    right_click: context_menu
+
+cancel_semantics:
+  esc_once: end_command
+
+geometry_support:
+  pairs:
+    - line + line
+    - line + arc
+    - arc + arc
+    - line + circle
+    - arc + circle
+    - circle + circle
+    - polyline + polyline (segment pairs)
+    - line + polyline
+    - line + xline / ray
+  polyline_whole: yes (Polyline option fillets every internal corner at once)
+  3D_solid_edges: yes (sOlid sub-option, not relevant for 2D core)
+
+provenance:
+  alias_F:
+    sources: [stress-free.co.nz acad.pgp mirror]
+    confidence: high
+  prompts.first_object_or_option:
+    sources:
+      - "CAD Forum FILLET page: 'Select first object or [Undo/Polyline/Radius/Trim/Multiple]:'"
+      - "BricsCAD FILLET docs"
+    confidence: high
+  prompts.second_object_shift:
+    sources: [BricsCAD docs, multiple community references on shift-corner]
+    confidence: high
+  R0_corner_cleanup:
+    sources:
+      - "Autodesk blog: How to Use Fillet in AutoCAD"
+      - "Universal AutoCAD power-user knowledge — referenced in our own e2e/edge-cases.spec.ts (fillet-r0-corner-cleanup test)"
+    confidence: high
+  sysvars:
+    sources: [Autodesk search snippets, BricsCAD docs, multiple community references]
+    confidence: high
+
+unverified:
+  - exact "Current settings: Mode = X, Radius = Y" header line wording
+  - whether Trim sub-option requires keyword input (T/N) or single-letter

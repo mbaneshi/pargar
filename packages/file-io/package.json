@@ -1,0 +1,21 @@
+{
+  "name": "@nexus/file-io",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nexus/core": "workspace:*",
+    "@nexus/logger": "workspace:*",
+    "dxf-parser": "^1.1.2",
+    "jspdf": "^4.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.0"
+  }
+}

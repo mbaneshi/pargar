@@ -1,0 +1,62 @@
+name: Coverage
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  coverage:
+    name: Test Coverage
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM
+        working-directory: packages/kernel
+        run: wasm-pack build --target web --out-dir pkg
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # self-installer default dest (~/setup-pnpm) is a fixed shared path —
+          # concurrent jobs race on it (ENOTEMPTY on rmdir, seen on PR #198).
+          dest: ~/.setup-pnpm-${{ runner.name }}
+      - name: Configure pnpm store (per-runner)
+        # Same shared-$HOME race as above, for the content-addressable
+        # store pnpm install populates (default ~/Library/pnpm/store) —
+        # confirmed on PR #198 (ERR_PNPM_ENOENT mid-install, concurrent
+        # runners copying from/pruning the same store).
+        run: pnpm config set store-dir ~/.pnpm-store-${{ runner.name }} --global
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests with coverage
+        run: pnpm --filter @nexus/app test:coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: packages/app/coverage/lcov.info
+          fail_ci_if_error: false

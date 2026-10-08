@@ -1,0 +1,151 @@
+# NEXUS OFFSET — implementation as written in code
+# Static audit 2026-04-17 from:
+#   packages/app/src/lib/commands/registerBuiltinCommands.ts:486-504
+#   packages/app/src/lib/shell/tools/OffsetHandler.ts
+#   packages/app/src/lib/shell/BaseToolHandler.ts
+#   packages/kernel/src/geometry_ops.rs:218-300
+#   packages/kernel/src/dispatch.rs:180
+#   packages/kernel/src/commands.rs:88
+#   packages/kernel/src/lib.rs:543
+
+command: modify_offset
+category: edit
+aliases: [o, offset]
+shortcut: O
+label: Offset
+
+mcp_schema:
+  required: [id, distance]
+  properties:
+    id:       { type: string, description: Entity ID }
+    distance: { type: number, description: Offset distance }
+
+prompts:
+  - id: distance
+    state: 0
+    text: "OFFSET Specify offset distance:"
+    accepts:
+      - kind: number
+        condition: "value > 0"
+        action: set_distance_then_advance(select_object)
+    rejects:
+      - keywords (Through/Erase/Layer not parsed)
+      - zero or negative values
+      - empty Enter (no default recall)
+
+  - id: select_object
+    state: 1
+    text: "OFFSET Select entity to offset (distance: {distance}):"
+    accepts:
+      - kind: pick
+        action: hit_test_then_emit_OffsetEntity_loop
+    rejects:
+      - keyword Exit / Undo / E / U
+      - Enter to exit (no Enter handler)
+    loops_to: select_object  # implicit — status stays at 1 after pick
+
+side_pick:
+  status: ABSENT
+  notes: |
+    Kernel `offset_entity(id, distance)` chooses side via sign of `distance`.
+    UI never asks user for side. Single click on entity offsets to one
+    deterministic side (positive normal: -dy/len, dx/len for a line).
+
+sysvars:
+  OFFSETDIST:    NOT_DEFINED
+  OFFSETERASE:   NOT_DEFINED
+  OFFSETLAYER:   NOT_DEFINED
+  OFFSETGAPTYPE: NOT_DEFINED
+
+distance_recall:
+  status: ABSENT
+  evidence: "OffsetHandler.ts:11 — `this.distance = 0` on activate(); reset every invocation"
+
+options:
+  Through:  NOT_IMPLEMENTED
+  Erase:    NOT_IMPLEMENTED
+  Layer:    NOT_IMPLEMENTED
+  Multiple: NOT_IMPLEMENTED  # but loop-on-pick is similar behavior
+  Undo:     NOT_IMPLEMENTED  # within-command undo
+  Exit:     NOT_IMPLEMENTED  # via keyword
+
+repeats_with_space: UNKNOWN  # not handled in OffsetHandler; depends on shell-level command repeat
+repeats_with_enter: UNKNOWN
+
+modeless_during_command:
+  fkeys:
+    F3: registered_globally  # snap_toggle command, transparent: true (registerBuiltinCommands.ts:1027)
+    F8: registered_globally  # ortho_toggle command, transparent: true (line 1058)
+    F9: registered_globally  # grid_snap_toggle command, transparent: true (line 1042)
+    F10: NOT_REGISTERED
+    F11: NOT_REGISTERED
+    F12: NOT_REGISTERED
+  transparent_commands:
+    zoom_extents: registered transparent: true (line 994)
+    zoom_in:      registered transparent: true (line 1006)
+    zoom_out:     registered transparent: true (line 1018)
+    pan:          NOT_REGISTERED
+    'PAN keyword: NOT_PARSED  # apostrophe-prefix not implemented
+    'ZOOM keyword: NOT_PARSED
+  mouse:
+    middle_drag:  UNKNOWN  # likely handled at canvas level, needs runtime verify
+    wheel_scroll: UNKNOWN  # likely handled at canvas level
+    right_click:  HANDLED — BaseToolHandler.onRightClick backs up one status step OR cancels tool
+                  # Diverges from AutoCAD: AutoCAD shows context menu, doesn't back up steps
+
+cancel_semantics:
+  esc_once:
+    code: "OffsetHandler.onKeyDown — setStatus(0); distance=0; clearPreview; return HANDLED"
+    effect: |
+      Resets to distance prompt WITHIN OFFSET. Does NOT exit the tool.
+      AutoCAD: Esc once exits the command. This is a behavioral divergence.
+  esc_twice:
+    code: not specifically handled — second Esc would also reset to status 0
+    effect: NEVER exits the tool
+
+context_menu_during_command:
+  status: ABSENT
+  evidence: BaseToolHandler.onRightClick backs up step or cancels tool — no menu
+
+kernel_offset_signature:
+  rust: "offset_entity(entities, event_store, dirty_ids, last_created_id, next_id, id: &str, distance: f64) -> String"
+  side_param: NOT_PRESENT
+  through_point_param: NOT_PRESENT
+  erase_source_param: NOT_PRESENT
+  layer_choice_param: NOT_PRESENT
+  geometry_support:
+    Line:     yes (signed-distance picks one side deterministically)
+    Circle:   yes (radius += distance; negative-result returns "")
+    Polyline: yes (per-vertex normal offset)
+    Arc:      partial — needs verification
+    Spline:   UNKNOWN
+    Ellipse:  UNKNOWN
+
+audit_findings:
+  - finding: "OFFSET as a power-user flow is reduced from 3 logical phases (distance → pick entity → pick side) to 2 (distance → pick entity)"
+    severity: critical
+    category: command_grammar
+  - finding: "No keyword options at distance prompt — AutoCAD has Through, Erase, Layer; we have none"
+    severity: high
+    category: command_grammar
+  - finding: "No default-distance recall — OFFSETDIST not stored; muscle memory of `O Enter` (re-use last distance) is broken"
+    severity: critical
+    category: state_persistence
+  - finding: "No within-command Undo — typing U does nothing; AutoCAD allows undoing the last offset within OFFSET"
+    severity: medium
+    category: command_grammar
+  - finding: "Esc inside OFFSET resets to distance prompt instead of exiting the command"
+    severity: high
+    category: cancel_semantics
+  - finding: "No sysvars (OFFSETDIST/ERASE/LAYER/GAPTYPE) — entire state-persistence layer absent"
+    severity: critical
+    category: state_persistence
+  - finding: "Right-click during command backs up a step instead of opening context menu"
+    severity: medium
+    category: context_aware_ui
+  - finding: "No 'PAN, 'ZOOM transparent-command parsing in command line"
+    severity: low
+    category: modeless
+  - finding: "MCP schema does not expose Through/Erase/Layer; an AI agent has the same reduced surface as the human"
+    severity: high
+    category: ai_surface_parity

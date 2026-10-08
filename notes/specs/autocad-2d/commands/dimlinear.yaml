@@ -1,0 +1,220 @@
+# AutoCAD DIMLINEAR — behavior specification
+# Extracted 2026-04-16. AutoCAD 2024/2025 baseline.
+# Provenance per fact at end of file. Fields without provenance are unverified.
+
+command: DIMLINEAR
+category: dimension
+aliases: [DLI, DIMLIN]
+shortcut: DLI
+
+description: |
+  Creates a horizontal, vertical, or rotated linear dimension. Measures the
+  horizontal or vertical distance between the extension line origins and places
+  a dimension line with text showing that distance. Uses the current DIMSTYLE.
+
+prompts:
+  - id: first_ext_origin
+    text: "Specify first extension line origin or <select object>:"
+    accepts:
+      - kind: pick
+        action: set_first_origin_then_advance(second_ext_origin)
+      - kind: enter
+        action: advance(select_object)
+        note: pressing Enter allows selecting an object to auto-extract dimension points
+      - kind: escape
+        action: cancel_command
+
+  - id: select_object
+    text: "Select object to dimension:"
+    accepts:
+      - kind: pick
+        action: auto_extract_origins_then_advance(dim_line_location)
+        note: |
+          For lines, uses the two endpoints. For arcs, uses the two endpoints.
+          For circles, uses the diameter endpoints at the pick point.
+          For polyline segments, uses the segment endpoints.
+      - kind: escape
+        action: cancel_command
+
+  - id: second_ext_origin
+    text: "Specify second extension line origin:"
+    accepts:
+      - kind: pick
+        action: set_second_origin_then_advance(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: dim_line_location
+    text: "Specify dimension line location or [Mtext/Text/Angle/Horizontal/Vertical/Rotated]:"
+    accepts:
+      - kind: pick
+        action: place_dimension_then_end
+        note: |
+          The pick point determines the dimension line location. AutoCAD
+          auto-detects Horizontal vs Vertical based on cursor position
+          relative to the extension line origins unless overridden.
+      - kind: keyword
+        value: M
+        long: Mtext
+        action: open_mtext_editor_then_return(dim_line_location)
+        note: opens the In-Place Text Editor for multiline dimension text
+      - kind: keyword
+        value: T
+        long: Text
+        action: advance(text_override)
+      - kind: keyword
+        value: A
+        long: Angle
+        action: advance(text_angle)
+      - kind: keyword
+        value: H
+        long: Horizontal
+        action: force_horizontal_then_return(dim_line_location)
+      - kind: keyword
+        value: V
+        long: Vertical
+        action: force_vertical_then_return(dim_line_location)
+      - kind: keyword
+        value: R
+        long: Rotated
+        action: advance(rotated_angle)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_override
+    text: "Enter dimension text <{MEASURED_VALUE}>:"
+    accepts:
+      - kind: number
+        action: set_text_override_then_return(dim_line_location)
+      - kind: enter
+        action: use_measured_value_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: text_angle
+    text: "Specify angle of dimension text:"
+    accepts:
+      - kind: number
+        action: set_text_angle_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+  - id: rotated_angle
+    text: "Specify angle of dimension line <0>:"
+    accepts:
+      - kind: number
+        action: set_rotation_then_return(dim_line_location)
+      - kind: enter
+        action: use_default_0_then_return(dim_line_location)
+      - kind: escape
+        action: cancel_command
+
+sysvars_read:
+  - DIMSTYLE       # current dimension style name
+  - DIMSCALE       # overall dimension scale factor
+  - DIMTXT         # dimension text height
+  - DIMASZ         # arrowhead size
+  - DIMDEC         # decimal places for primary units
+  - DIMLFAC        # linear scale factor for dimension values
+  - DIMTAD         # text placement above/below dimension line
+  - DIMGAP         # gap between dimension line and text
+  - DIMEXE         # extension line extension beyond dimension line
+  - DIMEXO         # extension line offset from origin
+  - DIMUPT         # user-positioned text (0=off, 1=on)
+
+sysvars_written: []
+
+sysvar_definitions:
+  DIMSTYLE:
+    type: string
+    default: Standard
+    persistence: drawing
+    notes: Name of the active dimension style. All DIM* variables are overridden by style settings.
+  DIMSCALE:
+    type: real
+    default: 1.0
+    persistence: drawing
+    notes: Global scale factor applied to all dimension geometry (text, arrows, gaps).
+  DIMDEC:
+    type: integer
+    default: 4
+    persistence: drawing
+    notes: Number of decimal places for primary dimension units.
+  DIMLFAC:
+    type: real
+    default: 1.0
+    persistence: drawing
+    notes: Scale factor for linear dimension measurements. Multiplied by measured distance.
+  DIMTAD:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: Centers text between extension lines
+      1: Places text above the dimension line
+      2: Places text on the far side from defining points
+      3: JIS standard placement
+      4: Places text below the dimension line
+  DIMUPT:
+    type: integer
+    default: 0
+    persistence: drawing
+    valid_values:
+      0: Cursor controls only dimension line location
+      1: Cursor controls both text position and dimension line location
+
+repeats_with_space: false
+repeats_with_enter: false
+repeat_preserves_options: false
+
+modeless_during_command:
+  fkeys:
+    F3: { action: toggle_OSMODE,    interrupts: false }
+    F8: { action: toggle_ORTHOMODE, interrupts: false }
+    F10: { action: toggle_polar,    interrupts: false }
+    F11: { action: toggle_otrack,   interrupts: false }
+    F12: { action: toggle_dynin,    interrupts: false }
+  transparent_commands:
+    "'PAN":   { interrupts: false }
+    "'ZOOM":  { interrupts: false }
+    "'REGEN": { interrupts: false }
+  mouse:
+    middle_drag:    pan_view
+    wheel_scroll:   zoom_about_cursor
+    right_click:    show_context_menu_with_repeat_recent_options
+
+cancel_semantics:
+  esc_once:    cancel_command_no_entity_created
+  esc_twice:   cancel_command_clear_selection
+
+provenance:
+  aliases:
+    sources:
+      - "Goodheart-Willcox AutoCAD Command Aliases appendix — DLI"
+      - "Autodesk Community forum thread confirming DLI alias"
+    confidence: high
+  prompts.first_ext_origin:
+    sources:
+      - "Autodesk Help GUID-E908848F (AutoCAD 2016-2022)"
+      - "BricsCAD DIMLINEAR docs"
+      - "progesoft.com Dimension Linear manual"
+    confidence: high
+  prompts.dim_line_location:
+    sources:
+      - "Autodesk Help GUID-E908848F — confirms [Mtext/Text/Angle/Horizontal/Vertical/Rotated]"
+      - "BricsCAD DIMLINEAR docs"
+      - "GstarCAD DIMLINEAR docs"
+    confidence: high
+  sysvars:
+    sources:
+      - "Scribd DimVar document — comprehensive dimension variable list"
+      - "CADDManager blog — CAD Standards Dimension Variables"
+      - "Autodesk Help dimension system variables"
+    confidence: high
+
+unverified:
+  - exact prompt wording for 'Specify first extension line origin or <select object>:' — may say 'press ENTER to select object' instead of angle brackets
+  - whether Mtext option opens the in-place editor or the old-style dialog in different AutoCAD versions
+  - exact default for DIMTAD in newer AutoCAD versions (some sources say 0, others say 1)
+  - whether DIMLINEAR repeats with Space/Enter (some dimension commands do not repeat)
+  - exact behavior when dimensioning a circle (which diameter endpoints are used based on pick point)
